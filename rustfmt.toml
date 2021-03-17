@@ -1,0 +1,13 @@
+comment_width = 79
+edition = "2018"
+error_on_line_overflow = true
+error_on_unformatted = true
+format_macro_matchers = true
+max_width = 79
+newline_style = "Unix"
+unstable_features = true
+use_field_init_shorthand = true
+use_small_heuristics = "Off"
+use_try_shorthand = true
+version = "Two"
+wrap_comments = true
