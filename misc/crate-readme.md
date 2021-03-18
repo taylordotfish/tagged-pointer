@@ -24,6 +24,7 @@ use core::ptr::NonNull;
 use tagged_pointer::TaggedPtr;
 use typenum::U2;
 
+#[repr(align(4))]
 struct Item(u32, u32);
 
 // `TaggedPtr` and `Option<TaggedPtr>` are both the size of a pointer:
