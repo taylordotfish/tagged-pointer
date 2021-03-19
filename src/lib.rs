@@ -177,19 +177,19 @@ impl<T, Bits: Unsigned> TaggedPtr<T, Bits> {
     ///
     /// # Panics
     ///
-    /// This method panics if the alignment of `T` is less than 2 to the power
-    /// of [`Bits::USIZE`](Unsigned::USIZE). This ensures that all properly
-    /// aligned pointers to `T` will be aligned enough to store the specified
-    /// number of bits of the tag.
+    /// This function panics if the alignment of `T` is less than 2 to the
+    /// power of [`Bits::USIZE`](Unsigned::USIZE). This ensures that all
+    /// properly aligned pointers to `T` will be aligned enough to store the
+    /// specified number of bits of the tag.
     ///
     /// `ptr` should be “dereferencable” in the sense defined by
-    /// [`core::ptr`](core::ptr#safety). If it is not, this method or other
-    /// methods of [`TaggedPtr`] may panic.
+    /// [`core::ptr`](core::ptr#safety). If it is not, this function or methods
+    /// of [`TaggedPtr`] may panic.
     ///
     /// It is recommended that `ptr` be properly aligned (i.e., aligned to at
     /// least [`mem::align_of::<T>()`](mem::align_of)), but it may have a
     /// smaller alignment. However, if its alignment is not at least
-    /// 2 to the power of [`Bits::USIZE`](Unsigned::USIZE), this method may
+    /// 2 to the power of [`Bits::USIZE`](Unsigned::USIZE), this function may
     /// panic.
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
         // This should always be true.
