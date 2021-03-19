@@ -1,6 +1,6 @@
 [package]
 name = "tagged-pointer"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["taylor.fish <contact@taylor.fish>"]
 edition = "2018"
 description = "Platform-independent space-efficient tagged pointers"

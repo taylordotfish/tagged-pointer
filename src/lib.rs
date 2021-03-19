@@ -156,7 +156,7 @@ impl<T, Bits> PartialOrd for PtrImpl<T, Bits> {
 ///
 /// This type stores a pointer and an integer tag without taking up more
 /// space than a normal pointer (unless the fallback implementation is used;
-/// see the [module documentation](crate)).
+/// see the [crate documentation](crate#assumptions)).
 ///
 /// The tagged pointer conceptually holds a [`NonNull<T>`](NonNull) and a
 /// certain number of bits of an integer tag.
