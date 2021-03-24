@@ -20,22 +20,18 @@
 use super::mask;
 use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
-use core::marker::PhantomData;
 use core::ptr::NonNull;
-use typenum::Unsigned;
 
-pub struct PtrImpl<T, Bits> {
+pub struct PtrImpl<T, const BITS: usize> {
     ptr: NonNull<T>,
     tag: usize,
-    phantom: PhantomData<*const Bits>,
 }
 
-impl<T, Bits: Unsigned> PtrImpl<T, Bits> {
+impl<T, const BITS: usize> PtrImpl<T, BITS> {
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
         Self {
             ptr,
-            tag: tag & mask::<Bits>(),
-            phantom: PhantomData,
+            tag: tag & mask(BITS),
         }
     }
 
@@ -44,29 +40,28 @@ impl<T, Bits: Unsigned> PtrImpl<T, Bits> {
     }
 }
 
-impl<T, Bits> Clone for PtrImpl<T, Bits> {
+impl<T, const BITS: usize> Clone for PtrImpl<T, BITS> {
     fn clone(&self) -> Self {
         Self {
             ptr: self.ptr,
             tag: self.tag,
-            phantom: self.phantom,
         }
     }
 }
 
-impl<T, Bits> PartialEq for PtrImpl<T, Bits> {
+impl<T, const BITS: usize> PartialEq for PtrImpl<T, BITS> {
     fn eq(&self, other: &Self) -> bool {
         (self.ptr, self.tag) == (other.ptr, other.tag)
     }
 }
 
-impl<T, Bits> Ord for PtrImpl<T, Bits> {
+impl<T, const BITS: usize> Ord for PtrImpl<T, BITS> {
     fn cmp(&self, other: &Self) -> Ordering {
         (self.ptr, self.tag).cmp(&(other.ptr, other.tag))
     }
 }
 
-impl<T, Bits> Hash for PtrImpl<T, Bits> {
+impl<T, const BITS: usize> Hash for PtrImpl<T, BITS> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         (self.ptr, self.tag).hash(state);
     }

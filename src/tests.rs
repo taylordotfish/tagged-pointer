@@ -18,8 +18,6 @@
  */
 
 use super::TaggedPtr;
-#[allow(clippy::wildcard_imports)]
-use typenum::consts::*;
 
 #[repr(align(2))]
 #[derive(Debug, Eq, PartialEq)]
@@ -38,22 +36,22 @@ fn basic() {
     #![allow(clippy::cast_possible_truncation)]
     for i in 0..64 {
         let x = i as u8 * 3;
-        let tp = TaggedPtr::<_, U0>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 0>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), 0));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
 
         let x = Align2(i as u16 * 5);
-        let tp = TaggedPtr::<_, U1>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 1>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), i & 0b1));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
 
         let x = Align4(i as u32 * 7);
-        let tp = TaggedPtr::<_, U2>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 2>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), i & 0b11));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
 
         let x = Align8(i as u64 * 11);
-        let tp = TaggedPtr::<_, U3>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 3>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), i & 0b111));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
     }
@@ -64,17 +62,17 @@ fn overaligned() {
     #![allow(clippy::cast_possible_truncation)]
     for i in 0..64 {
         let x = Align2(i as u16 * 3);
-        let tp = TaggedPtr::<_, U0>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 0>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), 0));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
 
         let x = Align4(i as u32 * 5);
-        let tp = TaggedPtr::<_, U1>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 1>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), i & 0b1));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
 
         let x = Align8(i as u64 * 7);
-        let tp = TaggedPtr::<_, U2>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 2>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), i & 0b11));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
     }
@@ -85,7 +83,7 @@ fn zst() {
     #![allow(clippy::let_unit_value)]
     for i in 0..8 {
         let x = ();
-        let tp = TaggedPtr::<_, U0>::new((&x).into(), i);
+        let tp = TaggedPtr::<_, 0>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), 0));
     }
 }
@@ -96,25 +94,25 @@ mod not_aligned_enough {
     #[test]
     #[should_panic]
     fn test1() {
-        TaggedPtr::<_, U1>::new((&0_u8).into(), 0);
+        TaggedPtr::<_, 1>::new((&0_u8).into(), 0);
     }
 
     #[test]
     #[should_panic]
     fn test2() {
-        TaggedPtr::<_, U2>::new((&Align2(0)).into(), 0);
+        TaggedPtr::<_, 2>::new((&Align2(0)).into(), 0);
     }
 
     #[test]
     #[should_panic]
     fn test3() {
-        TaggedPtr::<_, U3>::new((&Align4(0)).into(), 0);
+        TaggedPtr::<_, 3>::new((&Align4(0)).into(), 0);
     }
 
     #[test]
     #[should_panic]
     fn test4() {
-        TaggedPtr::<_, U4>::new((&Align8(0)).into(), 0);
+        TaggedPtr::<_, 4>::new((&Align8(0)).into(), 0);
     }
 }
 
@@ -122,7 +120,7 @@ mod not_aligned_enough {
 #[test]
 fn check_size() {
     assert_eq!(
-        core::mem::size_of::<TaggedPtr<u64, U3>>(),
+        core::mem::size_of::<TaggedPtr<u64, 3>>(),
         core::mem::size_of::<core::ptr::NonNull<u64>>(),
     );
 }
@@ -130,8 +128,8 @@ fn check_size() {
 #[test]
 fn check_option_size() {
     assert_eq!(
-        core::mem::size_of::<TaggedPtr<u64, U3>>(),
-        core::mem::size_of::<Option<TaggedPtr<u64, U3>>>(),
+        core::mem::size_of::<TaggedPtr<u64, 3>>(),
+        core::mem::size_of::<Option<TaggedPtr<u64, 3>>>(),
     );
 }
 
@@ -149,9 +147,9 @@ fn crate_example() {
     #[cfg(not(feature = "fallback"))]
     {
         // `TaggedPtr` and `Option<TaggedPtr>` are both the size of a pointer:
-        assert_eq!(size_of::<TaggedPtr<Item, U2>>(), size_of::<usize>());
+        assert_eq!(size_of::<TaggedPtr<Item, 2>>(), size_of::<usize>());
         assert_eq!(
-            size_of::<Option<TaggedPtr<Item, U2>>>(),
+            size_of::<Option<TaggedPtr<Item, 2>>>(),
             size_of::<usize>()
         );
     }
@@ -160,8 +158,8 @@ fn crate_example() {
     let item2 = Item(3, 4);
 
     // We can store two bits of the tag, since `Item` has an alignment of 4.
-    let tp1 = TaggedPtr::<_, U2>::new(NonNull::from(&item1), 1);
-    let tp2 = TaggedPtr::<_, U2>::new(NonNull::from(&item2), 3);
+    let tp1 = TaggedPtr::<_, 2>::new(NonNull::from(&item1), 1);
+    let tp2 = TaggedPtr::<_, 2>::new(NonNull::from(&item2), 3);
 
     let (ptr1, tag1) = tp1.get();
     let (ptr2, tag2) = tp2.get();

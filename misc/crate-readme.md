@@ -22,21 +22,20 @@ Example
 use core::mem::size_of;
 use core::ptr::NonNull;
 use tagged_pointer::TaggedPtr;
-use typenum::U2;
 
 #[repr(align(4))]
 struct Item(u32, u32);
 
 // `TaggedPtr` and `Option<TaggedPtr>` are both the size of a pointer:
-assert_eq!(size_of::<TaggedPtr<Item, U2>>(), size_of::<usize>());
-assert_eq!(size_of::<Option<TaggedPtr<Item, U2>>>(), size_of::<usize>());
+assert_eq!(size_of::<TaggedPtr<Item, 2>>(), size_of::<usize>());
+assert_eq!(size_of::<Option<TaggedPtr<Item, 2>>>(), size_of::<usize>());
 
 let item1 = Item(1, 2);
 let item2 = Item(3, 4);
 
 // We can store two bits of the tag, since `Item` has an alignment of 4.
-let tp1 = TaggedPtr::<_, U2>::new(NonNull::from(&item1), 1);
-let tp2 = TaggedPtr::<_, U2>::new(NonNull::from(&item2), 3);
+let tp1 = TaggedPtr::<_, 2>::new(NonNull::from(&item1), 1);
+let tp2 = TaggedPtr::<_, 2>::new(NonNull::from(&item2), 3);
 
 let (ptr1, tag1) = tp1.get();
 let (ptr2, tag2) = tp2.get();

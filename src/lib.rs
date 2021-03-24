@@ -46,7 +46,6 @@
 //! use core::mem::size_of;
 //! use core::ptr::NonNull;
 //! use tagged_pointer::TaggedPtr;
-//! use typenum::U2;
 //!
 //! #[repr(align(4))]
 //! struct Item(u32, u32);
@@ -54,16 +53,16 @@
 //! # #[cfg(not(feature = "fallback"))]
 //! # {
 //! // `TaggedPtr` and `Option<TaggedPtr>` are both the size of a pointer:
-//! assert_eq!(size_of::<TaggedPtr<Item, U2>>(), size_of::<usize>());
-//! assert_eq!(size_of::<Option<TaggedPtr<Item, U2>>>(), size_of::<usize>());
+//! assert_eq!(size_of::<TaggedPtr<Item, 2>>(), size_of::<usize>());
+//! assert_eq!(size_of::<Option<TaggedPtr<Item, 2>>>(), size_of::<usize>());
 //! # }
 //!
 //! let item1 = Item(1, 2);
 //! let item2 = Item(3, 4);
 //!
 //! // We can store two bits of the tag, since `Item` has an alignment of 4.
-//! let tp1 = TaggedPtr::<_, U2>::new(NonNull::from(&item1), 1);
-//! let tp2 = TaggedPtr::<_, U2>::new(NonNull::from(&item2), 3);
+//! let tp1 = TaggedPtr::<_, 2>::new(NonNull::from(&item1), 1);
+//! let tp2 = TaggedPtr::<_, 2>::new(NonNull::from(&item2), 3);
 //!
 //! let (ptr1, tag1) = tp1.get();
 //! let (ptr2, tag2) = tp2.get();
@@ -115,24 +114,23 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr::NonNull;
-use typenum::Unsigned;
 
-/// Calculates 2 to the power of [`Bits::USIZE`](Unsigned::USIZE), and panics
-/// if the result wouldn't fit in a `usize`.
-fn alignment<Bits: Unsigned>() -> usize {
+/// Calculates 2 to the power of `bits`, and panics if the result wouldn't fit
+/// in a `usize`. This is the alignment required to store `bits` tag bits.
+fn alignment(bits: usize) -> usize {
     use core::convert::TryFrom;
-    u32::try_from(Bits::USIZE)
+    u32::try_from(bits)
         .ok()
         .and_then(|n| 1_usize.checked_shl(n))
-        .expect("`Bits::USIZE` is too large")
+        .expect("`bits` is too large")
 }
 
 /// Returns the bitmask that should be applied to the tag to ensure that it is
-/// smaller than the alignment ([`alignment::<Bits>()`](alignment)). Since
-/// the alignment is always a power of 2, this function simply subtracts 1
-/// from the alignment.
-fn mask<Bits: Unsigned>() -> usize {
-    alignment::<Bits>() - 1
+/// smaller than the alignment ([`alignment(bits)`](alignment)). Since the
+/// alignment is always a power of 2, this function simply subtracts 1 from
+/// the alignment.
+fn mask(bits: usize) -> usize {
+    alignment(bits) - 1
 }
 
 #[cfg_attr(feature = "fallback", path = "fallback.rs")]
@@ -142,11 +140,11 @@ use ptr::PtrImpl;
 #[cfg(test)]
 mod tests;
 
-impl<T, Bits> Copy for PtrImpl<T, Bits> {}
+impl<T, const BITS: usize> Copy for PtrImpl<T, BITS> {}
 
-impl<T, Bits> Eq for PtrImpl<T, Bits> {}
+impl<T, const BITS: usize> Eq for PtrImpl<T, BITS> {}
 
-impl<T, Bits> PartialOrd for PtrImpl<T, Bits> {
+impl<T, const BITS: usize> PartialOrd for PtrImpl<T, BITS> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -162,26 +160,24 @@ impl<T, Bits> PartialOrd for PtrImpl<T, Bits> {
 /// The tagged pointer conceptually holds a [`NonNull<T>`](NonNull) and a
 /// certain number of bits of an integer tag.
 ///
-/// `Bits` should be a [type-level unsigned integer](Unsigned) from the
-/// [typenum] crate. It specifies how many bits are used for the tag. The
-/// alignment of `T` must be large enough to store this many bits; see
-/// [`Self::new`].
+/// `BITS` specifies how many bits are used for the tag. The alignment of `T`
+/// must be large enough to store this many bits; see [`Self::new`].
 #[repr(transparent)]
-pub struct TaggedPtr<T, Bits>(PtrImpl<T, Bits>);
+pub struct TaggedPtr<T, const BITS: usize>(PtrImpl<T, BITS>);
 
 const BAD_TYPE_ALIGNMENT_MSG: &str = "\
-alignment of `T` must be at least 2 to the power of `Bits::USIZE`";
+alignment of `T` must be at least 2 to the power of `BITS`";
 
-impl<T, Bits: Unsigned> TaggedPtr<T, Bits> {
-    /// Creates a new tagged pointer. Only the lower
-    /// [`Bits::USIZE`](Unsigned::USIZE) bits of `tag` are stored.
+impl<T, const BITS: usize> TaggedPtr<T, BITS> {
+    /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
+    /// stored.
     ///
     /// # Panics
     ///
     /// This function panics if the alignment of `T` is less than 2 to the
-    /// power of [`Bits::USIZE`](Unsigned::USIZE). This ensures that all
-    /// properly aligned pointers to `T` will be aligned enough to store the
-    /// specified number of bits of the tag.
+    /// power of `BITS`. This ensures that all properly aligned pointers to `T`
+    /// will be aligned enough to store the specified number of bits of the
+    /// tag.
     ///
     /// `ptr` should be “dereferencable” in the sense defined by
     /// [`core::ptr`](core::ptr#safety). If it is not, this function or methods
@@ -190,13 +186,12 @@ impl<T, Bits: Unsigned> TaggedPtr<T, Bits> {
     /// It is recommended that `ptr` be properly aligned (i.e., aligned to at
     /// least [`mem::align_of::<T>()`](mem::align_of)), but it may have a
     /// smaller alignment. However, if its alignment is not at least
-    /// 2 to the power of [`Bits::USIZE`](Unsigned::USIZE), this function may
-    /// panic.
+    /// 2 to the power of `BITS`, this function may panic.
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
         // This should always be true.
         assert!(mem::align_of::<T>().is_power_of_two());
         assert!(
-            mem::align_of::<T>().trailing_zeros() as usize >= Bits::USIZE,
+            mem::align_of::<T>().trailing_zeros() as usize >= BITS,
             "{}",
             BAD_TYPE_ALIGNMENT_MSG,
         );
@@ -240,41 +235,41 @@ impl<T, Bits: Unsigned> TaggedPtr<T, Bits> {
     }
 }
 
-impl<T, Bits> Clone for TaggedPtr<T, Bits> {
+impl<T, const BITS: usize> Clone for TaggedPtr<T, BITS> {
     fn clone(&self) -> Self {
         Self(self.0)
     }
 }
 
-impl<T, Bits> Copy for TaggedPtr<T, Bits> {}
+impl<T, const BITS: usize> Copy for TaggedPtr<T, BITS> {}
 
-impl<T, Bits> PartialEq for TaggedPtr<T, Bits> {
+impl<T, const BITS: usize> PartialEq for TaggedPtr<T, BITS> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T, Bits> Eq for TaggedPtr<T, Bits> {}
+impl<T, const BITS: usize> Eq for TaggedPtr<T, BITS> {}
 
-impl<T, Bits> PartialOrd for TaggedPtr<T, Bits> {
+impl<T, const BITS: usize> PartialOrd for TaggedPtr<T, BITS> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T, Bits> Ord for TaggedPtr<T, Bits> {
+impl<T, const BITS: usize> Ord for TaggedPtr<T, BITS> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T, Bits> Hash for TaggedPtr<T, Bits> {
+impl<T, const BITS: usize> Hash for TaggedPtr<T, BITS> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<T, Bits: Unsigned> fmt::Debug for TaggedPtr<T, Bits> {
+impl<T, const BITS: usize> fmt::Debug for TaggedPtr<T, BITS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (ptr, tag) = self.get();
         f.debug_struct("TaggedPtr")
