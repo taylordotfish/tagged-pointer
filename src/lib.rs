@@ -76,15 +76,16 @@
 //! -----------
 //!
 //! This crate relies on [`pointer::align_offset`][`align_offset`] not failing
-//! under certain circumstances. Specifically, [`align_offset`] must succeed
-//! when the desired alignment is less than or equal to the alignment of the
-//! allocation pointed to by the provided pointer. In practice, this is true,
-//! even in [Miri] with the `-Zmiri-symbolic-alignment-check` flag, but the
-//! specifications of [`align_offset`] technically allow an implementation not
-//! to follow this behavior. If you experience issues due to this, please file
-//! an issue in the [Git repository]. As a workaround, you can enable the
-//! `"fallback"` feature, which avoids relying on [`align_offset`] at the cost
-//! of making [`TaggedPtr`] twice as large.
+//! under certain circumstances. Specifically, [`align_offset`], when called on
+//! a pointer to [`u8`], must succeed when the desired alignment is less than
+//! or equal to the alignment of the allocation pointed to by the provided
+//! pointer. In practice, this is true, even in [Miri] with the
+//! `-Zmiri-symbolic-alignment-check` flag, but the specifications of
+//! [`align_offset`] technically allow an implementation not to follow this
+//! behavior. If you experience issues due to this, please file an issue in the
+//! [Git repository]. As a workaround, you can enable the `"fallback"` feature,
+//! which avoids relying on [`align_offset`] at the cost of making
+//! [`TaggedPtr`] twice as large.
 //!
 //! [Miri]: https://github.com/rust-lang/miri
 //!
