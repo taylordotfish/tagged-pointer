@@ -72,14 +72,14 @@
 //! -----------
 //!
 //! This crate relies on [`pointer::align_offset`][`align_offset`] not failing
-//! under certain circumstances. Specifically, [`align_offset`], when called on
-//! a pointer to [`u8`], must succeed when the desired alignment is less than
-//! or equal to the alignment of the allocation pointed to by the provided
-//! pointer. In practice, this is true, even in [Miri] with the
-//! `-Zmiri-symbolic-alignment-check` flag, but the specifications of
+//! under certain circumstances. Specifically, [`align_offset`], when called in
+//! a non-const context on a pointer to [`u8`], must succeed when the desired
+//! alignment is less than or equal to the alignment of the allocation pointed
+//! to by the provided pointer. In practice, this is true, even in [Miri] with
+//! the `-Zmiri-symbolic-alignment-check` flag, but the specifications of
 //! [`align_offset`] technically allow an implementation not to follow this
 //! behavior. If you experience issues due to this, please file an issue in the
-//! [Git repository]. As a workaround, you can enable the `"fallback"` feature,
+//! [Git repository]. As a workaround, you can enable the `fallback` feature,
 //! which avoids relying on [`align_offset`] at the cost of making
 //! [`TaggedPtr`] twice as large.
 //!
@@ -162,9 +162,6 @@ impl<T, const BITS: usize> PartialOrd for PtrImpl<T, BITS> {
 #[repr(transparent)]
 pub struct TaggedPtr<T, const BITS: usize>(PtrImpl<T, BITS>);
 
-const BAD_TYPE_ALIGNMENT_MSG: &str = "\
-alignment of `T` must be at least 2 to the power of `BITS`";
-
 impl<T, const BITS: usize> TaggedPtr<T, BITS> {
     /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
     /// stored.
@@ -189,8 +186,7 @@ impl<T, const BITS: usize> TaggedPtr<T, BITS> {
         assert!(mem::align_of::<T>().is_power_of_two());
         assert!(
             mem::align_of::<T>().trailing_zeros() as usize >= BITS,
-            "{}",
-            BAD_TYPE_ALIGNMENT_MSG,
+            "alignment of `T` must be at least 2 to the power of `BITS`",
         );
         // This should always be true.
         assert!(mem::size_of::<T>().max(1) >= mem::align_of::<T>());

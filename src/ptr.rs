@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2022 taylor.fish <contact@taylor.fish>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,19 +25,24 @@ const WRAPPED_TO_NULL_MSG: &str = "\
 “dereferencable” in the sense defined by `std::ptr`.";
 
 const ALIGN_OFFSET_FAILED_MSG: &str = "\
-Error: `align_offset` failed. This is due to one of the following reasons:
+Error: `align_offset` failed. This is due to one of the following
+reasons (most likely one of the first two):
 
-* The pointer passed to `TaggedPtr::new` wasn't “dereferencable” in the sense
-  defined by the documentation for `std::ptr`. (This is the most likely cause.)
+* The pointer passed to `TaggedPtr::new` wasn't aligned enough.
 
-* The current implementation of `align_offset` sometimes or always fails, even
-  when the desired alignment is less than or equal to the alignment of the
-  allocation pointed to by the provided pointer. This shouldn't happen in
-  practice, even in Miri with `-Zmiri-symbolic-alignment-check`, but is
-  technically allowed. If this happens, please file an issue at
-  <https://github.com/taylordotfish/tagged-pointer>. As a workaround, enable
-  the `\"fallback\"` feature in the “tagged-pointer” crate. This avoids relying
-  on `align_offset` at the cost of using twice as much memory.";
+* The pointer passed to `TaggedPtr::new` wasn't “dereferencable” in
+  the sense defined by the documentation for `std::ptr`.
+
+* The current implementation of `align_offset` sometimes or always
+  fails, even when called on a `u8` pointer from a non-const context
+  where the desired alignment is less than or equal to the alignment
+  of the allocation pointed to by the pointer. This shouldn't happen
+  in practice, even in Miri with `-Zmiri-symbolic-alignment-check`,
+  but is technically allowed. If this happens, please file an issue at
+  <https://github.com/taylordotfish/tagged-pointer>. As a workaround,
+  enable the `fallback` feature in the “tagged-pointer” crate. This
+  avoids relying on `align_offset` at the cost of using twice as much
+  memory.";
 
 #[repr(transparent)]
 pub struct PtrImpl<T, const BITS: usize>(NonNull<u8>, PhantomData<NonNull<T>>);
@@ -47,15 +52,14 @@ impl<T, const BITS: usize> PtrImpl<T, BITS> {
         let ptr = ptr.as_ptr();
         // Keep only the lower `BITS` bits of the tag.
         let tag = tag & mask(BITS);
-        match ptr.align_offset(alignment(BITS)) {
-            0 => Self(
-                NonNull::new(ptr.cast::<u8>().wrapping_add(tag))
-                    .expect(WRAPPED_TO_NULL_MSG),
-                PhantomData,
-            ),
-            usize::MAX => panic!("{}", ALIGN_OFFSET_FAILED_MSG),
-            _ => panic!("`ptr` is not aligned enough"),
-        }
+        let offset = ptr.align_offset(alignment(BITS));
+        assert!(offset != usize::MAX, "{}", ALIGN_OFFSET_FAILED_MSG);
+        assert!(offset & mask(BITS) == 0, "`ptr` is not aligned enough");
+        Self(
+            NonNull::new(ptr.cast::<u8>().wrapping_add(tag))
+                .expect(WRAPPED_TO_NULL_MSG),
+            PhantomData,
+        )
     }
 
     pub fn get(self) -> (NonNull<T>, usize) {
