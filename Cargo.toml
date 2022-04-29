@@ -1,8 +1,9 @@
 [package]
 name = "tagged-pointer"
-version = "0.2.2"
+version = "0.2.3-dev"
 authors = ["taylor.fish <contact@taylor.fish>"]
 edition = "2018"
+rust-version = "1.51"
 description = "Platform-independent space-efficient tagged pointers"
 documentation = "https://docs.rs/tagged-pointer"
 readme = "misc/crate-readme.md"
@@ -13,3 +14,4 @@ categories = ["data-structures", "no-std"]
 
 [features]
 fallback = []
+unstable = []
