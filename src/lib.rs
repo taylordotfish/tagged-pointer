@@ -16,6 +16,7 @@
 
 #![no_std]
 #![cfg_attr(feature = "unstable", deny(unsafe_op_in_unsafe_fn))]
+#![cfg_attr(not(feature = "unstable"), allow(unused_unsafe))]
 #![warn(clippy::pedantic)]
 #![allow(clippy::default_trait_access)]
 #![allow(clippy::module_name_repetitions)]
