@@ -14,4 +14,3 @@ categories = ["data-structures", "no-std"]
 
 [features]
 fallback = []
-unstable = []
