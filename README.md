@@ -27,8 +27,8 @@ use tagged_pointer::TaggedPtr;
 struct Item(u32, u32);
 
 // `TaggedPtr` and `Option<TaggedPtr>` are both the size of a pointer:
-assert_eq!(size_of::<TaggedPtr<Item, 2>>(), size_of::<usize>());
-assert_eq!(size_of::<Option<TaggedPtr<Item, 2>>>(), size_of::<usize>());
+assert_eq!(size_of::<TaggedPtr<Item, 2>>(), size_of::<*mut ()>());
+assert_eq!(size_of::<Option<TaggedPtr<Item, 2>>>(), size_of::<*mut ()>());
 
 let item1 = Item(1, 2);
 let item2 = Item(3, 4);
