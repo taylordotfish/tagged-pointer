@@ -20,7 +20,6 @@
 #![allow(clippy::default_trait_access)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate)]
-#![allow(clippy::non_ascii_literal)]
 
 //! This crate provides an implementation of [tagged pointers]: pointers that
 //! also contain an integer tag in a space-efficient manner.
@@ -131,6 +130,7 @@ fn mask(bits: usize) -> usize {
     alignment(bits) - 1
 }
 
+mod messages;
 #[cfg_attr(feature = "fallback", path = "fallback.rs")]
 mod ptr;
 use ptr::PtrImpl;

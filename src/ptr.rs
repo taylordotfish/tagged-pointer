@@ -14,35 +14,11 @@
  * limitations under the License.
  */
 
-use super::{alignment, mask};
+use super::{alignment, mask, messages};
 use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ptr::NonNull;
-
-const WRAPPED_TO_NULL_MSG: &str = "\
-`ptr` became null after adding `tag`. This shouldn't happen if `ptr` is
-“dereferencable” in the sense defined by `std::ptr`.";
-
-const ALIGN_OFFSET_FAILED_MSG: &str = "\
-Error: `align_offset` failed. This is due to one of the following
-reasons (most likely one of the first two):
-
-* The pointer passed to `TaggedPtr::new` wasn't aligned enough.
-
-* The pointer passed to `TaggedPtr::new` wasn't “dereferencable” in
-  the sense defined by the documentation for `std::ptr`.
-
-* The current implementation of `align_offset` sometimes or always
-  fails, even when called on a `u8` pointer from a non-const context
-  where the desired alignment is less than or equal to the alignment
-  of the allocation pointed to by the pointer. This shouldn't happen
-  in practice, even in Miri with `-Zmiri-symbolic-alignment-check`,
-  but is technically allowed. If this happens, please file an issue at
-  <https://github.com/taylordotfish/tagged-pointer>. As a workaround,
-  enable the `fallback` feature in the “tagged-pointer” crate. This
-  avoids relying on `align_offset` at the cost of using twice as much
-  memory.";
 
 #[repr(transparent)]
 pub struct PtrImpl<T, const BITS: usize>(NonNull<u8>, PhantomData<NonNull<T>>);
@@ -53,11 +29,11 @@ impl<T, const BITS: usize> PtrImpl<T, BITS> {
         // Keep only the lower `BITS` bits of the tag.
         let tag = tag & mask(BITS);
         let offset = ptr.align_offset(alignment(BITS));
-        assert!(offset != usize::MAX, "{}", ALIGN_OFFSET_FAILED_MSG);
+        assert!(offset != usize::MAX, "{}", messages::ALIGN_OFFSET_FAILED);
         assert!(offset & mask(BITS) == 0, "`ptr` is not aligned enough");
         Self(
             NonNull::new(ptr.cast::<u8>().wrapping_add(tag))
-                .expect(WRAPPED_TO_NULL_MSG),
+                .expect(messages::WRAPPED_TO_NULL),
             PhantomData,
         )
     }
@@ -65,7 +41,7 @@ impl<T, const BITS: usize> PtrImpl<T, BITS> {
     pub fn get(self) -> (NonNull<T>, usize) {
         let ptr = self.0.as_ptr();
         let offset = ptr.align_offset(alignment(BITS));
-        assert!(offset != usize::MAX, "{}", ALIGN_OFFSET_FAILED_MSG);
+        assert!(offset != usize::MAX, "{}", messages::ALIGN_OFFSET_FAILED);
         let tag = alignment(BITS).wrapping_sub(offset) & mask(BITS);
         let ptr = ptr.wrapping_sub(tag).cast::<T>();
         debug_assert!(!ptr.is_null());

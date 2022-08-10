@@ -1,0 +1,18 @@
+Error: `align_offset` failed. This is due to one of the following
+reasons (most likely one of the first two):
+
+* The pointer passed to `TaggedPtr::new` wasn't aligned enough.
+
+* The pointer passed to `TaggedPtr::new` wasn't "dereferencable" in
+  the sense defined by the documentation for `std::ptr`.
+
+* The current implementation of `align_offset` sometimes or always
+  fails, even when called on a `u8` pointer from a non-const context
+  where the desired alignment is less than or equal to the alignment
+  of the allocation pointed to by the pointer. This shouldn't happen
+  in practice, even in Miri with `-Zmiri-symbolic-alignment-check`,
+  but is technically allowed. If this happens, please file an issue at
+  <https://github.com/taylordotfish/tagged-pointer>. As a workaround,
+  enable the `fallback` feature in the "tagged-pointer" crate. This
+  avoids relying on `align_offset` at the cost of using twice as much
+  memory.
