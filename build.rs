@@ -38,7 +38,7 @@ fn compile<P: AsRef<Path>>(path: P) -> io::Result<bool> {
 }
 
 fn main() -> io::Result<()> {
-    env::set_current_dir(PathBuf::from_iter(["misc", "feature-test"]))?;
+    env::set_current_dir(PathBuf::from_iter(&["misc", "feature-test"]))?;
     if compile("unsafe_op_in_unsafe_fn.rs")? {
         println!("cargo:rustc-cfg=has_unsafe_op_in_unsafe_fn");
     }
