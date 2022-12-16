@@ -1,9 +1,11 @@
 /*
- * Copyright 2021 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2022 taylor.fish <contact@taylor.fish>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This file is part of tagged-pointer.
+ *
+ * tagged-pointer is licensed under the Apache License, Version 2.0
+ * (the "License"); you may not use tagged-pointer except in compliance
+ * with the License. You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -169,19 +171,22 @@ impl<T, const BITS: usize> TaggedPtr<T, BITS> {
     ///
     /// # Panics
     ///
-    /// This function panics if the alignment of `T` is less than 2 to the
-    /// power of `BITS`. This ensures that all properly aligned pointers to `T`
-    /// will be aligned enough to store the specified number of bits of the
-    /// tag.
+    /// This function panics if the alignment of `T` is less than
+    /// 2<sup>`BITS`</sup> (`1 << BITS`). This ensures that all properly
+    /// aligned pointers to `T` will be aligned enough to store the specified
+    /// number of bits of the tag.
     ///
     /// `ptr` should be “dereferencable” in the sense defined by
-    /// [`core::ptr`](core::ptr#safety). If it is not, this function or methods
-    /// of [`TaggedPtr`] may panic.
+    /// [`core::ptr`](core::ptr#safety).[^1] If it is not, this function or
+    /// methods of [`TaggedPtr`] may panic.
     ///
     /// It is recommended that `ptr` be properly aligned (i.e., aligned to at
     /// least [`mem::align_of::<T>()`](mem::align_of)), but it may have a
     /// smaller alignment. However, if its alignment is not at least
-    /// 2 to the power of `BITS`, this function may panic.
+    /// 2<sup>`BITS`</sup>, this function may panic.
+    ///
+    /// [^1]: It is permissible for only the first 2<sup>`BITS`</sup> bytes of
+    /// `ptr` to be dereferencable.
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
         // This should always be true.
         assert!(mem::align_of::<T>().is_power_of_two());
@@ -217,6 +222,26 @@ impl<T, const BITS: usize> TaggedPtr<T, BITS> {
         self.get().0
     }
 
+    /// Sets the pointer without modifying the tag.
+    ///
+    /// This method is simply equivalent to:
+    ///
+    /// ```
+    /// # use {core::ptr::NonNull, tagged_pointer::TaggedPtr};
+    /// # trait Ext<T> { fn set_ptr(&mut self, ptr: NonNull<T>); }
+    /// # impl<T, const BITS: usize> Ext<T> for TaggedPtr<T, BITS> {
+    /// # fn set_ptr(&mut self, ptr: NonNull<T>) {
+    /// *self = Self::new(ptr, self.tag());
+    /// # }}
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// See [`Self::new`].
+    pub fn set_ptr(&mut self, ptr: NonNull<T>) {
+        *self = Self::new(ptr, self.tag());
+    }
+
     /// Gets the tag stored by the tagged pointer. Equivalent to
     /// [`self.get().1`](Self::get).
     ///
@@ -226,6 +251,26 @@ impl<T, const BITS: usize> TaggedPtr<T, BITS> {
     /// [“dereferencable”](core::ptr#safety), this method may panic.
     pub fn tag(self) -> usize {
         self.get().1
+    }
+
+    /// Sets the tag without modifying the pointer.
+    ///
+    /// This method is simply equivalent to:
+    ///
+    /// ```
+    /// # use tagged_pointer::TaggedPtr;
+    /// # trait Ext { fn set_tag(&mut self, tag: usize); }
+    /// # impl<T, const BITS: usize> Ext for TaggedPtr<T, BITS> {
+    /// # fn set_tag(&mut self, tag: usize) {
+    /// *self = Self::new(self.ptr(), tag);
+    /// # }}
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// See [`Self::new`].
+    pub fn set_tag(&mut self, tag: usize) {
+        *self = Self::new(self.ptr(), tag);
     }
 }
 

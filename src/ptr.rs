@@ -1,9 +1,11 @@
 /*
  * Copyright 2021-2022 taylor.fish <contact@taylor.fish>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This file is part of tagged-pointer.
+ *
+ * tagged-pointer is licensed under the Apache License, Version 2.0
+ * (the "License"); you may not use tagged-pointer except in compliance
+ * with the License. You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *

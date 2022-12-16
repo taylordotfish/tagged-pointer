@@ -82,7 +82,7 @@ from the requirements already imposed by Rust, like having 8-bit bytes) and
 are satisfied by all known implementations of Rust, including Miri with
 `-Zmiri-symbolic-alignment-check`.
 
-[`TaggedPtr`]: https://docs.rs/tagged-pointer/latest/tagged_pointer/struct.TaggedPtr.html
+[`TaggedPtr`]: https://docs.rs/tagged-pointer/0.2/tagged_pointer/struct.TaggedPtr.html
 [`Option<TaggedPtr>`]: https://doc.rust-lang.org/std/option/enum.Option.html
 [`u8`]: https://doc.rust-lang.org/std/primitive.u8.html
 [`usize`]: https://doc.rust-lang.org/std/primitive.usize.html
