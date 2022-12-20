@@ -8,7 +8,7 @@ also contain an integer tag in a space-efficient manner.
 
 Unless the fallback implementation is used (see the
 [Assumptions](#assumptions) section below), both [`TaggedPtr`] and
-[`Option<TaggedPtr>`] are guaranteed to be the size of a pointer.
+[`Option<TaggedPtr>`] will be the size of a pointer.
 
 This crate depends only on [`core`], so it can be used in `no_std`
 environments.
@@ -82,7 +82,8 @@ from the requirements already imposed by Rust, like having 8-bit bytes) and
 are satisfied by all known implementations of Rust, including Miri with
 `-Zmiri-symbolic-alignment-check`.
 
-[`TaggedPtr`]: https://docs.rs/tagged-pointer/0.2/tagged_pointer/struct.TaggedPtr.html
+[`TaggedPtr`]:
+https://docs.rs/tagged-pointer/0.2/tagged_pointer/struct.TaggedPtr.html
 [`Option<TaggedPtr>`]: https://doc.rust-lang.org/std/option/enum.Option.html
 [`u8`]: https://doc.rust-lang.org/std/primitive.u8.html
 [`usize`]: https://doc.rust-lang.org/std/primitive.usize.html

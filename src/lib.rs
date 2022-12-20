@@ -30,7 +30,7 @@
 //!
 //! Unless the fallback implementation is used (see the
 //! [Assumptions](#assumptions) section below), both [`TaggedPtr`] and
-//! [`Option<TaggedPtr>`] are guaranteed to be the size of a pointer.
+//! [`Option<TaggedPtr>`] will be the size of a pointer.
 //!
 //! This crate depends only on [`core`], so it can be used in `no_std`
 //! environments.
