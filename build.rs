@@ -42,5 +42,6 @@ fn main() -> io::Result<()> {
     if compile("unsafe_op_in_unsafe_fn.rs")? {
         println!("cargo:rustc-cfg=has_unsafe_op_in_unsafe_fn");
     }
+    println!("cargo:rerun-if-changed=build.rs");
     Ok(())
 }
