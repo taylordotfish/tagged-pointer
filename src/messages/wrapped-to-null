@@ -1,2 +1,2 @@
 `ptr` became null after adding `tag`. This shouldn't happen if `ptr` is
-"dereferencable" in the sense defined by `std::ptr`.
+"dereferenceable" in the sense defined by `std::ptr`.

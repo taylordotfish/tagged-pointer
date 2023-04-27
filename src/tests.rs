@@ -91,36 +91,53 @@ fn zst() {
     }
 }
 
+#[test]
+fn compile_fail() {
+    let mut config = compiletest_rs::Config::default();
+    // Test all files in `src/tests_compile_fail`
+    config.src_base = "src/tests_compile_fail".into();
+    // All tests should fail to compile
+    config.mode = compiletest_rs::common::Mode::CompileFail;
+    // New feature of `compiletest`, ensures that comments
+    // for testing purposes are understood properly.
+    config.strict_headers = true;
+
+    // Running `cargo test` will build to `target/debug/deps`, but it's quite
+    // hard to find the `.rlib` there. Instead, try to build this crate
+    // manually so that we have a `.rlib` to link against in `target/debug`.
+    let mut features = std::string::String::new();
+    if cfg!(feature = "fallback") {
+        features += "fallback";
+    }
+    // Add any new features here
+    let status = std::process::Command::new("cargo")
+        .args(&["build", "--features", features.as_str()])
+        .status()
+        .unwrap();
+    if status.success() {
+        // There are various problems with using `link_deps` and `clean_rmeta`,
+        // if we managed to build the `.rlib` above then we can avoid them.
+        config.target_rustcflags = Some("-L target/debug".into());
+    } else {
+        // Using `link_deps` isn't enough to set `target_rustcflags` due to
+        // https://github.com/Manishearth/compiletest-rs/issues/155
+        config.target_rustcflags = Some("-L target/debug/deps".into());
+        // Populate config.target_rustcflags with dependencies on the path
+        config.link_deps();
+        // This helps with E0464, but will also invalidate the cache and cause
+        // a rebuild the next time. Sometimes E0464 still occurs (e.g. when
+        // changing features), in such a case run `cargo clean` and try again.
+        config.clean_rmeta();
+    }
+    compiletest_rs::run_tests(&config);
+}
+
 mod not_aligned_enough {
     use super::*;
 
     #[test]
-    #[should_panic]
+    #[cfg_attr(not(feature = "fallback"), should_panic)]
     fn test1() {
-        TaggedPtr::<_, 1>::new((&0_u8).into(), 0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test2() {
-        TaggedPtr::<_, 2>::new((&Align2(0)).into(), 0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test3() {
-        TaggedPtr::<_, 3>::new((&Align4(0)).into(), 0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test4() {
-        TaggedPtr::<_, 4>::new((&Align8(0)).into(), 0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test5() {
         let ptr: *mut Align2 = &mut Align2(0);
         let ptr = unsafe { (ptr as *mut u8).add(1) };
         let ptr = ptr as *mut Align2;
@@ -147,7 +164,7 @@ fn check_option_size() {
 }
 
 #[test]
-fn not_entirely_dereferencable() {
+fn not_entirely_dereferenceable() {
     #[repr(align(8))]
     struct Type(u64, u64, u64);
 

@@ -13,3 +13,6 @@ categories = ["data-structures", "no-std"]
 
 [features]
 fallback = []
+
+[dev-dependencies]
+compiletest_rs = "0.10"

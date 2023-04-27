@@ -3,7 +3,7 @@ reasons (most likely one of the first two):
 
 * The pointer passed to `TaggedPtr::new` wasn't aligned enough.
 
-* The pointer passed to `TaggedPtr::new` wasn't "dereferencable" in
+* The pointer passed to `TaggedPtr::new` wasn't "dereferenceable" in
   the sense defined by the documentation for `std::ptr`.
 
 * The current implementation of `align_offset` sometimes or always

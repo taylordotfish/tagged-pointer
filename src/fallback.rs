@@ -16,21 +16,25 @@
  * limitations under the License.
  */
 
-use super::mask;
 use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
 use core::ptr::NonNull;
 
-pub struct PtrImpl<T, const BITS: usize> {
+pub struct PtrImpl<T, const BITS: u32> {
     ptr: NonNull<T>,
     tag: usize,
 }
 
-impl<T, const BITS: usize> PtrImpl<T, BITS> {
+impl<T, const BITS: u32> PtrImpl<T, BITS> {
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
+        // Even though these checks are not necessary here, we want to ensure
+        // that if the fallback compiles then so would the default.
+        let _ = Self::T_ALIGNED_PO2;
+        let _ = Self::T_SIZE_GE_ALIGNMENT;
+        let _ = Self::ENOUGH_ALIGNMENT_BITS;
         Self {
             ptr,
-            tag: tag & mask(BITS),
+            tag: tag & Self::MASK,
         }
     }
 
@@ -39,7 +43,7 @@ impl<T, const BITS: usize> PtrImpl<T, BITS> {
     }
 }
 
-impl<T, const BITS: usize> Clone for PtrImpl<T, BITS> {
+impl<T, const BITS: u32> Clone for PtrImpl<T, BITS> {
     fn clone(&self) -> Self {
         Self {
             ptr: self.ptr,
@@ -48,19 +52,19 @@ impl<T, const BITS: usize> Clone for PtrImpl<T, BITS> {
     }
 }
 
-impl<T, const BITS: usize> PartialEq for PtrImpl<T, BITS> {
+impl<T, const BITS: u32> PartialEq for PtrImpl<T, BITS> {
     fn eq(&self, other: &Self) -> bool {
         (self.ptr, self.tag) == (other.ptr, other.tag)
     }
 }
 
-impl<T, const BITS: usize> Ord for PtrImpl<T, BITS> {
+impl<T, const BITS: u32> Ord for PtrImpl<T, BITS> {
     fn cmp(&self, other: &Self) -> Ordering {
         (self.ptr, self.tag).cmp(&(other.ptr, other.tag))
     }
 }
 
-impl<T, const BITS: usize> Hash for PtrImpl<T, BITS> {
+impl<T, const BITS: u32> Hash for PtrImpl<T, BITS> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         (self.ptr, self.tag).hash(state);
     }
