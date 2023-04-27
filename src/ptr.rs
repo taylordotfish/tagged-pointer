@@ -27,14 +27,16 @@ pub struct PtrImpl<T, const BITS: usize>(NonNull<u8>, PhantomData<NonNull<T>>);
 
 impl<T, const BITS: usize> PtrImpl<T, BITS> {
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
-        let ptr = ptr.as_ptr();
+        let ptr = ptr.as_ptr().cast::<u8>();
         // Keep only the lower `BITS` bits of the tag.
         let tag = tag & mask(BITS);
         let offset = ptr.align_offset(alignment(BITS));
         assert!(offset != usize::MAX, "{}", messages::ALIGN_OFFSET_FAILED);
+        // Check that none of the bits we're about to use are already set.
+        // We expect that `offset <= mask(BITS)` but do the `&` just in case.
         assert!(offset & mask(BITS) == 0, "`ptr` is not aligned enough");
         Self(
-            NonNull::new(ptr.cast::<u8>().wrapping_add(tag))
+            NonNull::new(ptr.wrapping_add(tag))
                 .expect(messages::WRAPPED_TO_NULL),
             PhantomData,
         )
@@ -44,7 +46,8 @@ impl<T, const BITS: usize> PtrImpl<T, BITS> {
         let ptr = self.0.as_ptr();
         let offset = ptr.align_offset(alignment(BITS));
         assert!(offset != usize::MAX, "{}", messages::ALIGN_OFFSET_FAILED);
-        let tag = alignment(BITS).wrapping_sub(offset) & mask(BITS);
+        // We expect that `offset <= mask(BITS)` but do the `&` just in case.
+        let tag = (alignment(BITS) - offset) & mask(BITS);
         let ptr = ptr.wrapping_sub(tag).cast::<T>();
         debug_assert!(!ptr.is_null());
         // SAFETY: `self.0` was created by adding `tag` to the `ptr` parameter
