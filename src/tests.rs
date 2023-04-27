@@ -117,6 +117,16 @@ mod not_aligned_enough {
     fn test4() {
         TaggedPtr::<_, 4>::new((&Align8(0)).into(), 0);
     }
+
+    #[test]
+    #[should_panic]
+    fn test5() {
+        let ptr: *mut Align2 = &mut Align2(0);
+        let ptr = unsafe { (ptr as *mut u8).add(1) };
+        let ptr = ptr as *mut Align2;
+        let ptr = unsafe { NonNull::new_unchecked(ptr) };
+        TaggedPtr::<_, 1>::new(ptr, 0);
+    }
 }
 
 #[cfg(not(feature = "fallback"))]
