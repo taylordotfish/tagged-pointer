@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2022 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2023 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
@@ -19,6 +19,10 @@
 use super::TaggedPtr;
 use core::mem;
 use core::ptr::NonNull;
+
+#[cfg(not(doctest))]
+#[cfg(feature = "compiletest_rs")]
+mod compiletest_rs;
 
 #[repr(align(2))]
 #[derive(Debug, Eq, PartialEq)]
@@ -92,58 +96,71 @@ fn zst() {
 }
 
 #[test]
-fn compile_fail() {
-    let mut config = compiletest_rs::Config::default();
-    // Test all files in `src/tests_compile_fail`
-    config.src_base = "src/tests_compile_fail".into();
-    // All tests should fail to compile
-    config.mode = compiletest_rs::common::Mode::CompileFail;
-    // New feature of `compiletest`, ensures that comments
-    // for testing purposes are understood properly.
-    config.strict_headers = true;
-
-    // Running `cargo test` will build to `target/debug/deps`, but it's quite
-    // hard to find the `.rlib` there. Instead, try to build this crate
-    // manually so that we have a `.rlib` to link against in `target/debug`.
-    let mut features = std::string::String::new();
-    if cfg!(feature = "fallback") {
-        features += "fallback";
-    }
-    // Add any new features here
-    let status = std::process::Command::new("cargo")
-        .args(&["build", "--features", features.as_str()])
-        .status()
-        .unwrap();
-    if status.success() {
-        // There are various problems with using `link_deps` and `clean_rmeta`,
-        // if we managed to build the `.rlib` above then we can avoid them.
-        config.target_rustcflags = Some("-L target/debug".into());
-    } else {
-        // Using `link_deps` isn't enough to set `target_rustcflags` due to
-        // https://github.com/Manishearth/compiletest-rs/issues/155
-        config.target_rustcflags = Some("-L target/debug/deps".into());
-        // Populate config.target_rustcflags with dependencies on the path
-        config.link_deps();
-        // This helps with E0464, but will also invalidate the cache and cause
-        // a rebuild the next time. Sometimes E0464 still occurs (e.g. when
-        // changing features), in such a case run `cargo clean` and try again.
-        config.clean_rmeta();
-    }
-    compiletest_rs::run_tests(&config);
+#[cfg_attr(not(feature = "fallback"), should_panic)]
+fn runtime_not_aligned_enough() {
+    let ptr: *mut Align2 = &mut Align2(0);
+    let ptr = unsafe { (ptr as *mut u8).add(1) };
+    let ptr = ptr as *mut Align2;
+    let ptr = unsafe { NonNull::new_unchecked(ptr) };
+    TaggedPtr::<_, 1>::new(ptr, 0);
 }
 
-mod not_aligned_enough {
-    use super::*;
+mod type_not_aligned_enough {
+    /// ```
+    /// use tagged_pointer::TaggedPtr;
+    /// TaggedPtr::<_, 0>::new((&0_u8).into(), 0);
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use tagged_pointer::TaggedPtr;
+    /// TaggedPtr::<_, 1>::new((&0_u8).into(), 0);
+    /// ```
+    mod test1 {}
 
-    #[test]
-    #[cfg_attr(not(feature = "fallback"), should_panic)]
-    fn test1() {
-        let ptr: *mut Align2 = &mut Align2(0);
-        let ptr = unsafe { (ptr as *mut u8).add(1) };
-        let ptr = ptr as *mut Align2;
-        let ptr = unsafe { NonNull::new_unchecked(ptr) };
-        TaggedPtr::<_, 1>::new(ptr, 0);
-    }
+    /// ```
+    /// use tagged_pointer::TaggedPtr;
+    /// #[repr(align(2))]
+    /// struct Align2(pub u16);
+    /// TaggedPtr::<_, 1>::new((&Align2(0)).into(), 0);
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use tagged_pointer::TaggedPtr;
+    /// #[repr(align(2))]
+    /// struct Align2(pub u16);
+    /// TaggedPtr::<_, 2>::new((&Align2(0)).into(), 0);
+    /// ```
+    mod test2 {}
+
+    /// ```
+    /// use tagged_pointer::TaggedPtr;
+    /// #[repr(align(4))]
+    /// struct Align4(pub u32);
+    /// TaggedPtr::<_, 2>::new((&Align4(0)).into(), 0);
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use tagged_pointer::TaggedPtr;
+    /// #[repr(align(4))]
+    /// struct Align4(pub u32);
+    /// TaggedPtr::<_, 3>::new((&Align4(0)).into(), 0);
+    /// ```
+    mod test3 {}
+
+    /// ```
+    /// use tagged_pointer::TaggedPtr;
+    /// #[repr(align(8))]
+    /// struct Align8(pub u64);
+    /// TaggedPtr::<_, 3>::new((&Align8(0)).into(), 0);
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use tagged_pointer::TaggedPtr;
+    /// #[repr(align(8))]
+    /// struct Align8(pub u64);
+    /// TaggedPtr::<_, 4>::new((&Align8(0)).into(), 0);
+    /// ```
+    mod test4 {}
 }
 
 #[cfg(not(feature = "fallback"))]

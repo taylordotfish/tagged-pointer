@@ -14,5 +14,6 @@ categories = ["data-structures", "no-std"]
 [features]
 fallback = []
 
-[dev-dependencies]
-compiletest_rs = "0.10"
+[dependencies.compiletest_rs]
+version = "0.10"
+optional = true

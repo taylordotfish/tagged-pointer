@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2022 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2023 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(all(test, feature = "compiletest_rs")), no_std)]
 #![cfg_attr(has_unsafe_op_in_unsafe_fn, deny(unsafe_op_in_unsafe_fn))]
 #![warn(clippy::pedantic)]
 #![allow(clippy::default_trait_access)]
@@ -120,50 +120,75 @@ mod messages;
 mod ptr;
 use ptr::PtrImpl;
 
-#[cfg(test)]
+#[cfg(any(test, doctest))]
 mod tests;
 
-impl<T, const BITS: u32> PtrImpl<T, BITS> {
-    /// Compile-time check of our assumption about the alignment of `T`. This
-    /// should always succeed.
-    const T_ALIGNED_PO2: () = assert!(
-        mem::align_of::<T>().is_power_of_two(),
-        "unexpected alignment of `T`"
-    );
-    /// Compile-time check of our assumption about the size vs alignment of
-    /// `T`. This should always succeed.
-    const T_SIZE_GE_ALIGNMENT: () = assert!(
-        mem::size_of::<T>() == 0
-            || mem::size_of::<T>() >= mem::align_of::<T>(),
-        "unexpected `size_of` vs `align_of` for `T`"
-    );
-    /// Compile-time check that the requested `BITS` is small enough.
-    const ENOUGH_ALIGNMENT_BITS: () = assert!(
-        mem::align_of::<T>().trailing_zeros() >= BITS,
-        "alignment of `T` must be greater or equal to `BITS`"
-    );
+/// [`u32`] might make more sense here (see, e.g., [`u32::BITS`]), but this
+/// would be a breaking change.
+type Bits = usize;
 
-    /// Calculates 2 to the power of `BITS`, and panics if the result wouldn't
-    /// fit in a `usize`. This is the alignment required to store `BITS`
-    /// tag bits.
-    const ALIGNMENT: usize = if let Some(align) = 1_usize.checked_shl(BITS) {
-        align
-    } else {
-        panic!("2 to the power of `BITS` does not fit in a `usize`")
+impl<T, const BITS: Bits> PtrImpl<T, BITS> {
+    #[allow(clippy::no_effect)]
+    /// Compile-time checks. [`Self::new`] calls [`Self::assert`], which forces
+    /// the checks to be evaluated.
+    const ASSERT: bool = {
+        // `BITS` must at least fit in a `u32` (in reality, it must be much
+        // smaller).
+        let b = BITS <= u32::MAX as Bits;
+        ["`BITS` cannot exceed `u32::MAX`"][!b as usize];
+
+        // Assumption about the alignment of `T`. This should always succeed.
+        let b = mem::align_of::<T>().is_power_of_two();
+        ["expected alignment of `T` to be a power of 2"][!b as usize];
+
+        // Assumption about the size of `T`. This should always succeed.
+        let b = match mem::size_of::<T>() {
+            0 => true,
+            n => n >= mem::align_of::<T>(),
+        };
+        ["expected size of non-ZST `T` to be at least alignment"][!b as usize];
+
+        // Assumption about the size of `T`. This should always succeed.
+        let b = mem::size_of::<T>() % mem::align_of::<T>() == 0;
+        ["expected size of `T` to be multiple of alignment"][!b as usize];
+
+        // Ensure `1 << BITS` doesn't overflow.
+        let b = 1_usize.checked_shl(Self::BITS32).is_some();
+        ["`1 << BITS` doesn't fit in a `usize`"][!b as usize];
+
+        // Ensure `T` is aligned enough to store `BITS` bits.
+        let b = mem::align_of::<T>().trailing_zeros() >= Self::BITS32;
+        ["alignment of `T` must be at least `1 << BITS`"][!b as usize];
+        true
     };
 
-    /// The bitmask that should be applied to the tag to ensure that it
-    /// is smaller than [`Self::ALIGNMENT`].
-    /// Since the alignment is always a power of 2, this simply
-    /// subtracts 1 from the alignment.
+    fn assert() {
+        // This assertion won't ever actually fail; rather, if any of the
+        // checks in `Self::ASSERT` failed, it will prompt a compiler error.
+        assert!(Self::ASSERT, "compile-time checks failed");
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::unnecessary_cast)]
+    /// `BITS` cast to a `u32`. We ensured this doesn't overflow earlier.
+    const BITS32: u32 = BITS as u32;
+
+    /// The alignment required to store `BITS` tag bits. We ensured this
+    /// doesn't overflow earlier, so use `wrapping_shl` so that we get only
+    /// one compiler error.
+    const ALIGNMENT: usize = 1_usize.wrapping_shl(Self::BITS32);
+
+    /// The bitmask that should be applied to the tag to ensure that it is
+    /// smaller than [`Self::ALIGNMENT`]. Since the alignment is always a power
+    /// of 2, simply subtract 1 from the alignment.
     const MASK: usize = Self::ALIGNMENT - 1;
 }
 
-impl<T, const BITS: u32> Copy for PtrImpl<T, BITS> {}
+impl<T, const BITS: Bits> Copy for PtrImpl<T, BITS> {}
 
-impl<T, const BITS: u32> Eq for PtrImpl<T, BITS> {}
+impl<T, const BITS: Bits> Eq for PtrImpl<T, BITS> {}
 
-impl<T, const BITS: u32> PartialOrd for PtrImpl<T, BITS> {
+impl<T, const BITS: Bits> PartialOrd for PtrImpl<T, BITS> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -182,14 +207,16 @@ impl<T, const BITS: u32> PartialOrd for PtrImpl<T, BITS> {
 /// `BITS` specifies how many bits are used for the tag. The alignment of `T`
 /// must be large enough to store this many bits; see [`Self::new`].
 #[repr(transparent)]
-pub struct TaggedPtr<T, const BITS: u32>(PtrImpl<T, BITS>);
+pub struct TaggedPtr<T, const BITS: Bits>(PtrImpl<T, BITS>);
 
-impl<T, const BITS: u32> TaggedPtr<T, BITS> {
+impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
-    /// stored. A check is performed at compile time that the alignment of `T`
-    /// is not less than 2<sup>`BITS`</sup> (`1 << BITS`). This ensures that
-    /// all properly aligned pointers to `T` will be aligned enough to store
-    /// the specified number of bits of the tag.
+    /// stored.
+    ///
+    /// A check is performed at compile time to ensure that the alignment of
+    /// `T` is not less than 2<sup>`BITS`</sup> (`1 << BITS`). This ensures
+    /// that all properly aligned pointers to `T` will be aligned enough to
+    /// store the specified number of bits of the tag.
     ///
     /// # Panics
     ///
@@ -238,7 +265,7 @@ impl<T, const BITS: u32> TaggedPtr<T, BITS> {
     /// ```
     /// # use {core::ptr::NonNull, tagged_pointer::TaggedPtr};
     /// # trait Ext<T> { fn set_ptr(&mut self, ptr: NonNull<T>); }
-    /// # impl<T, const BITS: u32> Ext<T> for TaggedPtr<T, BITS> {
+    /// # impl<T, const BITS: usize> Ext<T> for TaggedPtr<T, BITS> {
     /// # fn set_ptr(&mut self, ptr: NonNull<T>) {
     /// *self = Self::new(ptr, self.tag());
     /// # }}
@@ -269,7 +296,7 @@ impl<T, const BITS: u32> TaggedPtr<T, BITS> {
     /// ```
     /// # use tagged_pointer::TaggedPtr;
     /// # trait Ext { fn set_tag(&mut self, tag: usize); }
-    /// # impl<T, const BITS: u32> Ext for TaggedPtr<T, BITS> {
+    /// # impl<T, const BITS: usize> Ext for TaggedPtr<T, BITS> {
     /// # fn set_tag(&mut self, tag: usize) {
     /// *self = Self::new(self.ptr(), tag);
     /// # }}
@@ -283,41 +310,41 @@ impl<T, const BITS: u32> TaggedPtr<T, BITS> {
     }
 }
 
-impl<T, const BITS: u32> Clone for TaggedPtr<T, BITS> {
+impl<T, const BITS: Bits> Clone for TaggedPtr<T, BITS> {
     fn clone(&self) -> Self {
         Self(self.0)
     }
 }
 
-impl<T, const BITS: u32> Copy for TaggedPtr<T, BITS> {}
+impl<T, const BITS: Bits> Copy for TaggedPtr<T, BITS> {}
 
-impl<T, const BITS: u32> PartialEq for TaggedPtr<T, BITS> {
+impl<T, const BITS: Bits> PartialEq for TaggedPtr<T, BITS> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T, const BITS: u32> Eq for TaggedPtr<T, BITS> {}
+impl<T, const BITS: Bits> Eq for TaggedPtr<T, BITS> {}
 
-impl<T, const BITS: u32> PartialOrd for TaggedPtr<T, BITS> {
+impl<T, const BITS: Bits> PartialOrd for TaggedPtr<T, BITS> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T, const BITS: u32> Ord for TaggedPtr<T, BITS> {
+impl<T, const BITS: Bits> Ord for TaggedPtr<T, BITS> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T, const BITS: u32> Hash for TaggedPtr<T, BITS> {
+impl<T, const BITS: Bits> Hash for TaggedPtr<T, BITS> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<T, const BITS: u32> fmt::Debug for TaggedPtr<T, BITS> {
+impl<T, const BITS: Bits> fmt::Debug for TaggedPtr<T, BITS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (ptr, tag) = self.get();
         f.debug_struct("TaggedPtr")

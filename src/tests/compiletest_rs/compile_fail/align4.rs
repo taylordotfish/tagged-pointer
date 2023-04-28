@@ -1,13 +1,13 @@
-//@ error-pattern:alignment of `T` must be greater or equal to `BITS`
+//@ error-pattern:alignment of `T` must be at least `1 << BITS`
 
 // If the test fails here with E0464, run `cargo clean` and try again.
 extern crate tagged_pointer;
 use tagged_pointer::TaggedPtr;
 
-#[repr(align(8))]
+#[repr(align(4))]
 #[derive(Debug, Eq, PartialEq)]
-struct Align8(pub u64);
+struct Align4(pub u32);
 
 fn main() {
-    TaggedPtr::<_, 4>::new((&Align8(0)).into(), 0);
+    TaggedPtr::<_, 3>::new((&Align4(0)).into(), 0);
 }
