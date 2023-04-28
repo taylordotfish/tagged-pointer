@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-use super::TaggedPtr;
+use super::{TaggedMutRef, TaggedPtr, TaggedRef};
 use core::mem;
 use core::ptr::NonNull;
 
@@ -61,6 +61,83 @@ fn basic() {
         let tp = TaggedPtr::<_, 3>::new((&x).into(), i);
         assert_eq!(tp.get(), ((&x).into(), i & 0b111));
         assert_eq!(*unsafe { tp.ptr().as_ref() }, x);
+    }
+}
+
+#[test]
+fn basic_ref() {
+    #![allow(clippy::cast_possible_truncation)]
+    for i in 0..64 {
+        let x = i as u8 * 3;
+        let r = &x;
+        let addr = r as *const _ as usize;
+        let tp = TaggedRef::<_, 0>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, 0));
+        assert_eq!(*tp.reference(), i as u8 * 3);
+
+        let x = Align2(i as u16 * 5);
+        let r = &x;
+        let addr = r as *const _ as usize;
+        let tp = TaggedRef::<_, 1>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, i & 0b1));
+        assert_eq!(*tp.reference(), Align2(i as u16 * 5));
+
+        let x = Align4(i as u32 * 7);
+        let r = &x;
+        let addr = r as *const _ as usize;
+        let tp = TaggedRef::<_, 2>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, i & 0b11));
+        assert_eq!(*tp.reference(), Align4(i as u32 * 7));
+
+        let x = Align8(i as u64 * 11);
+        let r = &x;
+        let addr = r as *const _ as usize;
+        let tp = TaggedRef::<_, 3>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, i & 0b111));
+        assert_eq!(*tp.reference(), Align8(i as u64 * 11));
+    }
+}
+
+#[test]
+fn basic_mut_ref() {
+    #![allow(clippy::cast_possible_truncation)]
+    for i in 0..64 {
+        let mut x = i as u8 * 3;
+        let r = &mut x;
+        let addr = r as *const _ as usize;
+        let tp = TaggedMutRef::<_, 0>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, 0));
+        assert_eq!(*tp.reference(), i as u8 * 3);
+
+        let mut x = Align2(i as u16 * 5);
+        let r = &mut x;
+        let addr = r as *const _ as usize;
+        let tp = TaggedMutRef::<_, 1>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, i & 0b1));
+        assert_eq!(*tp.reference(), Align2(i as u16 * 5));
+
+        let mut x = Align4(i as u32 * 7);
+        let r = &mut x;
+        let addr = r as *const _ as usize;
+        let mut tp = TaggedMutRef::<_, 2>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, i & 0b11));
+        tp.reference_mut().0 += 1;
+        assert_eq!(x.0, i as u32 * 7 + 1);
+
+        let mut x = Align8(i as u64 * 11);
+        let r = &mut x;
+        let addr = r as *const _ as usize;
+        let tp = TaggedMutRef::<_, 3>::new(r, i);
+        let (a, b) = tp.get();
+        assert_eq!((a as *const _ as usize, b), (addr, i & 0b111));
+        assert_eq!(*tp.reference(), Align8(i as u64 * 11));
     }
 }
 

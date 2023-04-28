@@ -118,7 +118,9 @@ use core::ptr::NonNull;
 mod messages;
 #[cfg_attr(feature = "fallback", path = "fallback.rs")]
 mod ptr;
+mod r#ref;
 use ptr::PtrImpl;
+pub use r#ref::{TaggedMutRef, TaggedRef};
 
 #[cfg(any(test, doctest))]
 mod tests;
@@ -235,6 +237,22 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
         Self(PtrImpl::new(ptr, tag))
     }
 
+    /// Creates a new tagged pointer.
+    ///
+    /// A check is performed at compile time to ensure that the alignment of
+    /// `T` is not less than 2<sup>`BITS`</sup> (`1 << BITS`). This ensures
+    /// that all properly aligned pointers to `T` will be aligned enough to
+    /// store the specified number of bits of the tag.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be properly aligned.
+    ///
+    /// `tag` must not be larger than [`Self::mask`].
+    pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        Self(unsafe { PtrImpl::new_unchecked(ptr, tag) })
+    }
+
     /// Gets the pointer and tag stored by the tagged pointer. If you need
     /// both the pointer and tag, this method may be more efficient than
     /// calling [`Self::ptr`] and [`Self::tag`] separately.
@@ -245,6 +263,19 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// [“dereferenceable”](core::ptr#safety), this method may panic.
     pub fn get(self) -> (NonNull<T>, usize) {
         self.0.get()
+    }
+
+    /// Gets the (properly aligned) pointer and tag stored by the tagged
+    /// pointer.
+    ///
+    /// # Safety
+    ///
+    /// `self` must have been constructed with a `ptr` and `tag` which uphold
+    /// the safety criteria set out in [`Self::new_unchecked`]. Note that
+    /// [`Self::new`] internally masks its `tag` argument, and so only the
+    /// `ptr` restriction applies in that case.
+    pub unsafe fn get_unchecked(self) -> (NonNull<T>, usize) {
+        unsafe { self.0.get_unchecked() }
     }
 
     /// Gets the pointer stored by the tagged pointer, without the tag.
@@ -307,6 +338,13 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// See [`Self::new`].
     pub fn set_tag(&mut self, tag: usize) {
         *self = Self::new(self.ptr(), tag);
+    }
+
+    /// Returns the bitmask for the tag, use `tag & TaggedPtr::mask()` to
+    /// ensure safety of [`Self::new_unchecked`]. Calculated as
+    /// 2<sup>`BITS`</sup> - 1.
+    pub const fn mask() -> usize {
+        PtrImpl::<T, BITS>::MASK
     }
 }
 

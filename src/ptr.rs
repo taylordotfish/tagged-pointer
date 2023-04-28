@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2022 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2023 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
@@ -23,10 +23,13 @@ use core::marker::PhantomData;
 use core::ptr::NonNull;
 
 #[repr(transparent)]
-pub struct PtrImpl<T, const BITS: Bits>(NonNull<u8>, PhantomData<NonNull<T>>);
+pub(crate) struct PtrImpl<T, const BITS: Bits>(
+    NonNull<u8>,
+    PhantomData<NonNull<T>>,
+);
 
 impl<T, const BITS: Bits> PtrImpl<T, BITS> {
-    pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
+    pub(crate) fn new(ptr: NonNull<T>, tag: usize) -> Self {
         // Ensure compile-time checks are evaluated.
         Self::assert();
         let ptr = ptr.as_ptr().cast::<u8>();
@@ -45,7 +48,20 @@ impl<T, const BITS: Bits> PtrImpl<T, BITS> {
         Self(ptr.expect(messages::WRAPPED_TO_NULL), PhantomData)
     }
 
-    pub fn get(self) -> (NonNull<T>, usize) {
+    pub(crate) unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        // Ensure compile-time checks are evaluated.
+        Self::assert();
+        let ptr = ptr.as_ptr().cast::<u8>().wrapping_add(tag);
+        // SAFETY: We require from the caller that `ptr` is properly aligned
+        // and that `tag <= Self::MASK`, therefore, since both the alignment of
+        // `T` and `usize::MAX + 1` are a power of 2 adding `tag` cannot cross
+        // the alignment boundary to the next object (and overflow to zero).
+        // This combined with the fact that `ptr` came from a `NonNull<T>`,
+        // means that the sum cannot be null.
+        Self(unsafe { NonNull::new_unchecked(ptr) }, PhantomData)
+    }
+
+    pub(crate) fn get(self) -> (NonNull<T>, usize) {
         let ptr = self.0.as_ptr();
         let offset = ptr.align_offset(Self::ALIGNMENT);
         assert!(offset != usize::MAX, "{}", messages::ALIGN_OFFSET_FAILED);
@@ -62,6 +78,17 @@ impl<T, const BITS: Bits> PtrImpl<T, BITS> {
         // in `Self::new`. After subtracting `tag`, we get the original value
         // of the `ptr` parameter, which cannot be null because it was a
         // `NonNull<T>`.
+        (unsafe { NonNull::new_unchecked(ptr) }, tag)
+    }
+
+    pub(crate) unsafe fn get_unchecked(self) -> (NonNull<T>, usize) {
+        let ptr = self.0.as_ptr();
+        let tag = ptr as usize & Self::MASK;
+        let ptr = ptr.wrapping_sub(tag).cast::<T>();
+        // SAFETY: We require that `self` was constructed with a properly
+        // aligned `NonNull<T>` and with a `tag <= Self::MASK`, therefore after
+        // subtracting `tag`, we get the original value of the `ptr` parameter,
+        // which cannot be null because it was a `NonNull<T>`.
         (unsafe { NonNull::new_unchecked(ptr) }, tag)
     }
 }

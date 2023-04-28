@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2023 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
@@ -21,13 +21,13 @@ use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
 use core::ptr::NonNull;
 
-pub struct PtrImpl<T, const BITS: Bits> {
+pub(crate) struct PtrImpl<T, const BITS: Bits> {
     ptr: NonNull<T>,
     tag: usize,
 }
 
 impl<T, const BITS: Bits> PtrImpl<T, BITS> {
-    pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
+    pub(crate) fn new(ptr: NonNull<T>, tag: usize) -> Self {
         // Ensure compile-time checks are evaluated. Even though the checks
         // are not strictly necessary for the fallback implementation, it's
         // desirable to match the behavior of the standard implementation.
@@ -38,8 +38,16 @@ impl<T, const BITS: Bits> PtrImpl<T, BITS> {
         }
     }
 
-    pub fn get(self) -> (NonNull<T>, usize) {
+    pub(crate) unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        Self::new(ptr, tag)
+    }
+
+    pub(crate) fn get(self) -> (NonNull<T>, usize) {
         (self.ptr, self.tag)
+    }
+
+    pub(crate) unsafe fn get_unchecked(self) -> (NonNull<T>, usize) {
+        self.get()
     }
 }
 
