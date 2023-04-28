@@ -1,6 +1,6 @@
 [package]
 name = "tagged-pointer"
-version = "0.2.7-dev"
+version = "0.2.7"
 edition = "2018"
 rust-version = "1.51"
 description = "Platform-independent space-efficient tagged pointers"
@@ -14,6 +14,7 @@ categories = ["data-structures", "no-std"]
 [features]
 fallback = []
 
+# Optional, for tests only.
 [dependencies.compiletest_rs]
 version = "0.10"
 optional = true

@@ -162,6 +162,7 @@ impl<T, const BITS: Bits> PtrImpl<T, BITS> {
         true
     };
 
+    /// Calling this function ensures the compile-time checks will be run.
     fn assert() {
         // This assertion won't ever actually fail; rather, if any of the
         // checks in `Self::ASSERT` failed, it will prompt a compiler error.
