@@ -131,8 +131,8 @@ type Bits = u32;
 struct Check<T, const BITS: Bits>(T);
 impl<T, const BITS: Bits> Check<T, BITS> {
     #[allow(clippy::no_effect)]
-    /// Compile-time checks. [`Self::new`] calls [`Self::ASSERT`], which forces
-    /// the checks to be evaluated.
+    /// Compile-time checks. Referencing this with `let _ = Check::<T, BITS>::ASSERT;`
+    /// ensures that the compile time checks are run. See e.g. [`TaggedPtr::new`].
     const ASSERT: () = {
         // The `BITS` constant was correctly provided to `new`.
         let b = BITS == Self::BITS;
