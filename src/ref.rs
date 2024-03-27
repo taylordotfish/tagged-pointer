@@ -179,7 +179,10 @@ impl<'a, T> TaggedRef<'a, T> {
     /// # }}
     /// ```
     pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
-        *self = Self::new::<BITS>(self.reference(), tag);
+        // Perform compile-time checks as close to call site so that
+        // diagnostics point to user code.
+        let _ = Check::<T, BITS>::ASSERT;
+        *self = Self::new_implied(self.reference(), tag);
     }
 }
 
@@ -425,6 +428,9 @@ impl<'a, T> TaggedMutRef<'a, T> {
     /// tr = TaggedMutRef::new::<2>(tr.reference_inner(), 1);
     /// ```
     pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
+        // Perform compile-time checks as close to call site so that
+        // diagnostics point to user code.
+        let _ = Check::<T, BITS>::ASSERT;
         let mut ptr = NonNull::from(self.reference_mut());
         // SAFETY: We can extend the lifetime to `'a` since we know that this
         // is the true lifetime of the reference `self` holds. We temporarily
@@ -433,7 +439,7 @@ impl<'a, T> TaggedMutRef<'a, T> {
         // then `self` would not get overwritten, luckily this would still be
         // ok because `reference` is immediately discarded on return.
         let reference = unsafe { ptr.as_mut() };
-        *self = Self::new::<BITS>(reference, tag);
+        *self = Self::new_implied(reference, tag);
     }
 
     /// Creates a new identical tagged reference. Useful to mimic the reborrow
