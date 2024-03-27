@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2023 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2024 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
@@ -118,24 +118,44 @@ use core::ptr::NonNull;
 mod messages;
 #[cfg_attr(feature = "fallback", path = "fallback.rs")]
 mod ptr;
+mod r#ref;
 use ptr::PtrImpl;
+pub use r#ref::{TaggedMutRef, TaggedRef};
 
 #[cfg(any(test, doctest))]
 mod tests;
 
-/// [`u32`] might make more sense here (see, e.g., [`u32::BITS`]), but this
-/// would be a breaking change.
-type Bits = usize;
+/// see, e.g., [`u32::BITS`].
+type Bits = u32;
 
-impl<T, const BITS: Bits> PtrImpl<T, BITS> {
+struct Check<T, const BITS: Bits>(T);
+impl<T, const BITS: Bits> Check<T, BITS> {
     #[allow(clippy::no_effect)]
-    /// Compile-time checks. [`Self::new`] calls [`Self::assert`], which forces
-    /// the checks to be evaluated.
-    const ASSERT: bool = {
-        // `BITS` must at least fit in a `u32` (in reality, it must be much
-        // smaller).
-        let b = BITS <= u32::MAX as Bits;
-        ["`BITS` cannot exceed `u32::MAX`"][!b as usize];
+    /// Compile-time checks. Referencing this with `let _ = Check::<T, BITS>::ASSERT;`
+    /// ensures that the compile time checks are run. See e.g. [`TaggedPtr::new`].
+    const ASSERT: () = {
+        // The `BITS` constant was correctly provided to `new`.
+        let b = BITS == Self::BITS;
+        match Self::BITS {
+            0 => ["`BITS` must be equal to 0"][!b as usize],
+            1 => ["`BITS` must be equal to 1"][!b as usize],
+            2 => ["`BITS` must be equal to 2"][!b as usize],
+            3 => ["`BITS` must be equal to 3"][!b as usize],
+            4 => ["`BITS` must be equal to 4"][!b as usize],
+            5 => ["`BITS` must be equal to 5"][!b as usize],
+            6 => ["`BITS` must be equal to 6"][!b as usize],
+            7 => ["`BITS` must be equal to 7"][!b as usize],
+            8 => ["`BITS` must be equal to 8"][!b as usize],
+            9 => ["`BITS` must be equal to 9"][!b as usize],
+            10 => ["`BITS` must be equal to 10"][!b as usize],
+            11 => ["`BITS` must be equal to 11"][!b as usize],
+            12 => ["`BITS` must be equal to 12"][!b as usize],
+            13 => ["`BITS` must be equal to 13"][!b as usize],
+            14 => ["`BITS` must be equal to 14"][!b as usize],
+            15 => ["`BITS` must be equal to 15"][!b as usize],
+            16 => ["`BITS` must be equal to 16"][!b as usize],
+            _ => ["`BITS` must be equal to `mem::align_of::<T>().trailing_zeros()`"][!b as usize],
+        };
 
         // Assumption about the alignment of `T`. This should always succeed.
         let b = mem::align_of::<T>().is_power_of_two();
@@ -153,31 +173,25 @@ impl<T, const BITS: Bits> PtrImpl<T, BITS> {
         ["expected size of `T` to be multiple of alignment"][!b as usize];
 
         // Ensure `1 << BITS` doesn't overflow.
-        let b = 1_usize.checked_shl(Self::BITS32).is_some();
+        let b = 1_usize.checked_shl(Self::BITS).is_some();
         ["`1 << BITS` doesn't fit in a `usize`"][!b as usize];
 
-        // Ensure `T` is aligned enough to store `BITS` bits.
-        let b = mem::align_of::<T>().trailing_zeros() >= Self::BITS32;
+        // Ensure `T` is aligned enough to store `BITS` bits. This will always
+        // succeed, but is kept around in case `PtrImpl::<T>::BITS` changes.
+        let b = mem::align_of::<T>().trailing_zeros() >= Self::BITS;
         ["alignment of `T` must be at least `1 << BITS`"][!b as usize];
-        true
     };
 
-    /// Calling this function ensures the compile-time checks will be run.
-    fn assert() {
-        // This assertion won't ever actually fail; rather, if any of the
-        // checks in `Self::ASSERT` failed, it will prompt a compiler error.
-        assert!(Self::ASSERT, "compile-time checks failed");
-    }
+    const BITS: u32 = PtrImpl::<T>::BITS;
+}
 
-    #[allow(clippy::cast_possible_truncation)]
-    #[allow(clippy::unnecessary_cast)]
-    /// `BITS` cast to a `u32`. We ensured this doesn't overflow earlier.
-    const BITS32: u32 = BITS as u32;
+impl<T> PtrImpl<T> {
+    const BITS: u32 = mem::align_of::<T>().trailing_zeros();
 
     /// The alignment required to store `BITS` tag bits. We ensured this
     /// doesn't overflow earlier, so use `wrapping_shl` so that we get only
     /// one compiler error.
-    const ALIGNMENT: usize = 1_usize.wrapping_shl(Self::BITS32);
+    const ALIGNMENT: usize = 1_usize.wrapping_shl(Self::BITS);
 
     /// The bitmask that should be applied to the tag to ensure that it is
     /// smaller than [`Self::ALIGNMENT`]. Since the alignment is always a power
@@ -185,11 +199,11 @@ impl<T, const BITS: Bits> PtrImpl<T, BITS> {
     const MASK: usize = Self::ALIGNMENT - 1;
 }
 
-impl<T, const BITS: Bits> Copy for PtrImpl<T, BITS> {}
+impl<T> Copy for PtrImpl<T> {}
 
-impl<T, const BITS: Bits> Eq for PtrImpl<T, BITS> {}
+impl<T> Eq for PtrImpl<T> {}
 
-impl<T, const BITS: Bits> PartialOrd for PtrImpl<T, BITS> {
+impl<T> PartialOrd for PtrImpl<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -205,17 +219,19 @@ impl<T, const BITS: Bits> PartialOrd for PtrImpl<T, BITS> {
 /// The tagged pointer conceptually holds a [`NonNull<T>`](NonNull) and a
 /// certain number of bits of an integer tag.
 ///
-/// `BITS` specifies how many bits are used for the tag. The alignment of `T`
-/// must be large enough to store this many bits; see [`Self::new`].
+/// The number of bits that can be stored in the tag is determined as
+/// `mem::align_of::<T>().trailing_zeros()`, any higher bits in the tag will
+/// be masked away. See [`Self::new`] for more details.
 #[repr(transparent)]
-pub struct TaggedPtr<T, const BITS: Bits>(PtrImpl<T, BITS>);
+pub struct TaggedPtr<T>(PtrImpl<T>);
 
-impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
+impl<T> TaggedPtr<T> {
     /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
     /// stored.
     ///
     /// A check is performed at compile time to ensure that the alignment of
-    /// `T` is not less than 2<sup>`BITS`</sup> (`1 << BITS`). This ensures
+    /// `T` is exactly 2<sup>`BITS`</sup> (i.e. that `BITS ==
+    /// mem::align_of::<T>().trailing_zeros()`). This ensures
     /// that all properly aligned pointers to `T` will be aligned enough to
     /// store the specified number of bits of the tag.
     ///
@@ -232,8 +248,51 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     ///
     /// [^1]: It is permissible for only the first 2<sup>`BITS`</sup> bytes of
     /// `ptr` to be dereferenceable.
-    pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
+    pub fn new<const BITS: Bits>(ptr: NonNull<T>, tag: usize) -> Self {
+        // Perform compile-time checks as close to call site so that
+        // diagnostics point to user code.
+        let _ = Check::<T, BITS>::ASSERT;
+        Self::new_implied(ptr, tag)
+    }
+
+    /// Creates a new tagged pointer. Identical to [`Self::new`] but without
+    /// needing to explicitly specify the expected number of available bits.
+    /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
+    /// 
+    /// Using this method is generally not recommended since the tag may be
+    /// unexpectedly truncated if the alignment of `T` is not what you expect.
+    pub fn new_implied(ptr: NonNull<T>, tag: usize) -> Self {
         Self(PtrImpl::new(ptr, tag))
+    }
+
+    /// Creates a new tagged pointer.
+    ///
+    /// A check is performed at compile time to ensure that the alignment of
+    /// `T` is exactly 2<sup>`BITS`</sup> (i.e. that `BITS ==
+    /// mem::align_of::<T>().trailing_zeros()`). This ensures
+    /// that all properly aligned pointers to `T` will be aligned enough to
+    /// store the specified number of bits of the tag.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be properly aligned.
+    ///
+    /// `tag` must not be larger than [`Self::mask`].
+    pub unsafe fn new_unchecked<const BITS: Bits>(ptr: NonNull<T>, tag: usize) -> Self {
+        // Perform compile-time checks as close to call site so that
+        // diagnostics point to user code.
+        let _ = Check::<T, BITS>::ASSERT;
+        unsafe { Self::new_implied_unchecked(ptr, tag) }
+    }
+
+    /// Creates a new tagged pointer. Identical to [`Self::new_unchecked`] but without
+    /// needing to explicitly specify the expected number of available bits.
+    /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
+    /// 
+    /// Using this method is generally not recommended since the tag may be
+    /// unexpectedly truncated if the alignment of `T` is not what you expect.
+    pub unsafe fn new_implied_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        Self(unsafe { PtrImpl::new_unchecked(ptr, tag) })
     }
 
     /// Gets the pointer and tag stored by the tagged pointer. If you need
@@ -246,6 +305,19 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// [“dereferenceable”](core::ptr#safety), this method may panic.
     pub fn get(self) -> (NonNull<T>, usize) {
         self.0.get()
+    }
+
+    /// Gets the (properly aligned) pointer and tag stored by the tagged
+    /// pointer.
+    ///
+    /// # Safety
+    ///
+    /// `self` must have been constructed with a `ptr` and `tag` which uphold
+    /// the safety criteria set out in [`Self::new_unchecked`]. Note that
+    /// [`Self::new`] internally masks its `tag` argument, and so only the
+    /// `ptr` restriction applies in that case.
+    pub unsafe fn get_unchecked(self) -> (NonNull<T>, usize) {
+        unsafe { self.0.get_unchecked() }
     }
 
     /// Gets the pointer stored by the tagged pointer, without the tag.
@@ -266,9 +338,9 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// ```
     /// # use {core::ptr::NonNull, tagged_pointer::TaggedPtr};
     /// # trait Ext<T> { fn set_ptr(&mut self, ptr: NonNull<T>); }
-    /// # impl<T, const BITS: usize> Ext<T> for TaggedPtr<T, BITS> {
+    /// # impl<T> Ext<T> for TaggedPtr<T> {
     /// # fn set_ptr(&mut self, ptr: NonNull<T>) {
-    /// *self = Self::new(ptr, self.tag());
+    /// *self = Self::new_implied(ptr, self.tag());
     /// # }}
     /// ```
     ///
@@ -276,7 +348,7 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     ///
     /// See [`Self::new`].
     pub fn set_ptr(&mut self, ptr: NonNull<T>) {
-        *self = Self::new(ptr, self.tag());
+        *self = Self::new_implied(ptr, self.tag());
     }
 
     /// Gets the tag stored by the tagged pointer. Equivalent to
@@ -296,56 +368,66 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     ///
     /// ```
     /// # use tagged_pointer::TaggedPtr;
-    /// # trait Ext { fn set_tag(&mut self, tag: usize); }
-    /// # impl<T, const BITS: usize> Ext for TaggedPtr<T, BITS> {
-    /// # fn set_tag(&mut self, tag: usize) {
-    /// *self = Self::new(self.ptr(), tag);
+    /// # trait Ext { fn set_tag<const BITS: u32>(&mut self, tag: usize); }
+    /// # impl<T> Ext for TaggedPtr<T> {
+    /// # fn set_tag<const BITS: u32>(&mut self, tag: usize) {
+    /// *self = Self::new::<BITS>(self.ptr(), tag);
     /// # }}
     /// ```
     ///
     /// # Panics
     ///
     /// See [`Self::new`].
-    pub fn set_tag(&mut self, tag: usize) {
-        *self = Self::new(self.ptr(), tag);
+    pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
+        // Perform compile-time checks as close to call site so that
+        // diagnostics point to user code.
+        let _ = Check::<T, BITS>::ASSERT;
+        *self = Self::new_implied(self.ptr(), tag);
+    }
+
+    /// Returns the bitmask for the tag, use `tag & TaggedPtr::mask()` to
+    /// ensure safety of [`Self::new_unchecked`]. Calculated as
+    /// 2<sup>`BITS`</sup> - 1.
+    pub const fn mask() -> usize {
+        PtrImpl::<T>::MASK
     }
 }
 
-impl<T, const BITS: Bits> Clone for TaggedPtr<T, BITS> {
+impl<T> Clone for TaggedPtr<T> {
     fn clone(&self) -> Self {
         Self(self.0)
     }
 }
 
-impl<T, const BITS: Bits> Copy for TaggedPtr<T, BITS> {}
+impl<T> Copy for TaggedPtr<T> {}
 
-impl<T, const BITS: Bits> PartialEq for TaggedPtr<T, BITS> {
+impl<T> PartialEq for TaggedPtr<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T, const BITS: Bits> Eq for TaggedPtr<T, BITS> {}
+impl<T> Eq for TaggedPtr<T> {}
 
-impl<T, const BITS: Bits> PartialOrd for TaggedPtr<T, BITS> {
+impl<T> PartialOrd for TaggedPtr<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T, const BITS: Bits> Ord for TaggedPtr<T, BITS> {
+impl<T> Ord for TaggedPtr<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T, const BITS: Bits> Hash for TaggedPtr<T, BITS> {
+impl<T> Hash for TaggedPtr<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<T, const BITS: Bits> fmt::Debug for TaggedPtr<T, BITS> {
+impl<T> fmt::Debug for TaggedPtr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (ptr, tag) = self.get();
         f.debug_struct("TaggedPtr")
