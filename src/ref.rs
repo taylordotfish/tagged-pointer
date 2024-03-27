@@ -1,6 +1,6 @@
 /*
- * Copyright 2023 Jonáš Fiala <jonas.fiala@inf.ethz.ch>
- * Copyright 2023 taylor.fish <contact@taylor.fish>
+ * Copyright 2023-2024 Jonáš Fiala <jonas.fiala@inf.ethz.ch>
+ * Copyright 2023-2024 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
@@ -23,7 +23,7 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
-use super::{Bits, TaggedPtr};
+use super::{Bits, Check, TaggedPtr};
 
 /// A tagged immutable reference: a space-efficient representation of a
 /// reference and integer tag.
@@ -35,31 +35,46 @@ use super::{Bits, TaggedPtr};
 /// The tagged reference conceptually holds a `&'a T` and a certain number of
 /// bits of an integer tag.
 ///
-/// `BITS` specifies how many bits are used for the tag. The alignment of `T`
-/// must be large enough to store this many bits; see [`Self::new`].
+/// The number of bits that can be stored in the tag is determined as
+/// `mem::align_of::<T>().trailing_zeros()`, any higher bits in the tag will
+/// be masked away. See [`Self::new`] for more details.
 #[repr(transparent)]
-pub struct TaggedRef<'a, T, const BITS: Bits>(
-    TaggedPtr<T, BITS>,
+pub struct TaggedRef<'a, T>(
+    TaggedPtr<T>,
     PhantomData<&'a T>,
 );
 
-impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
-    /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
+impl<'a, T> TaggedRef<'a, T> {
+    /// Creates a new tagged reference. Only the lower `BITS` bits of `tag` are
     /// stored.
     ///
     /// A check is performed at compile time to ensure that the alignment of
-    /// `T` is not less than 2<sup>`BITS`</sup> (`1 << BITS`). This ensures
+    /// `T` is exactly 2<sup>`BITS`</sup> (i.e. that `BITS ==
+    /// mem::align_of::<T>().trailing_zeros()`). This ensures
     /// that all properly aligned pointers to `T` will be aligned enough to
     /// store the specified number of bits of the tag.
-    pub fn new(reference: &'a T, tag: usize) -> Self {
+    pub fn new<const BITS: Bits>(reference: &'a T, tag: usize) -> Self {
+        // Perform compile-time checks as close to call site so that
+        // diagnostics point to user code.
+        let _ = Check::<T, BITS>::ASSERT;
+        Self::new_implied(reference, tag)
+    }
+
+    /// Creates a new tagged reference. Identical to [`Self::new`] but without
+    /// needing to explicitly specify the expected number of available bits.
+    /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
+    /// 
+    /// Using this method is generally not recommended since the tag may be
+    /// unexpectedly truncated if the alignment of `T` is not what you expect.
+    pub fn new_implied(reference: &'a T, tag: usize) -> Self {
         let ptr = NonNull::from(reference);
-        let tag = tag & TaggedPtr::<T, BITS>::mask();
+        let tag = tag & TaggedPtr::<T>::mask();
         // SAFETY: `reference` is guaranteed to be aligned and `tag <= mask()`.
-        let ptr = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
+        let ptr = unsafe { TaggedPtr::new_implied_unchecked(ptr, tag) };
         Self(ptr, PhantomData)
     }
 
-    /// Gets the pointer and tag stored by the tagged pointer.
+    /// Gets the reference and tag stored by the tagged reference.
     pub fn get(self) -> (&'a T, usize) {
         // SAFETY: can only have been constructed with `TaggedRef::new`.
         // Thus `ptr` will be properly aligned and “dereferenceable”.
@@ -85,10 +100,10 @@ impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     /// ```
     /// # use tagged_pointer::TaggedRef;
     /// # trait Ext<'a, T> { fn set_reference(&mut self, reference: &'a T); }
-    /// # impl<'a, T, const BITS: usize> Ext<'a, T>
-    /// #    for TaggedRef<'a, T, BITS> {
+    /// # impl<'a, T> Ext<'a, T>
+    /// #    for TaggedRef<'a, T> {
     /// # fn set_reference(&mut self, reference: &'a T) {
-    /// *self = Self::new(reference, self.tag());
+    /// *self = Self::new_implied(reference, self.tag());
     /// # }}
     /// ```
     ///
@@ -98,7 +113,7 @@ impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     /// ```compile_fail
     /// # use tagged_pointer::TaggedRef;
     /// let (mut x, y) = (14_u32, 21_u32);
-    /// let mut tr = TaggedRef::<_, 2>::new(&x, 0);
+    /// let mut tr = TaggedRef::new::<2>(&x, 0);
     /// tr.set_reference(&y); // `x` stays borrowed
     /// x += 1; // use of borrowed `x`
     /// let v = *tr;
@@ -106,7 +121,7 @@ impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     ///
     /// If you run into this issue, use [`Self::new_reference`] instead.
     pub fn set_reference(&mut self, reference: &'a T) {
-        *self = Self::new(reference, self.tag());
+        *self = Self::new_implied(reference, self.tag());
     }
 
     /// Creates a new tagged reference with the same tag.
@@ -115,13 +130,13 @@ impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     ///
     /// ```
     /// # use tagged_pointer::TaggedRef;
-    /// # trait Ext<T, const BITS: usize> { fn set_reference<'b>
-    /// #    (&mut self, reference: &'b T) -> TaggedRef<'b, T, BITS>; }
-    /// # impl<'a, T, const BITS: usize> Ext<T, BITS>
-    /// #    for TaggedRef<'a, T, BITS> {
+    /// # trait Ext<T> { fn set_reference<'b>
+    /// #    (&mut self, reference: &'b T) -> TaggedRef<'b, T>; }
+    /// # impl<'a, T> Ext<T>
+    /// #    for TaggedRef<'a, T> {
     /// # fn set_reference<'b>(&mut self, reference: &'b T)
-    /// #    -> TaggedRef<'b, T, BITS> {
-    /// TaggedRef::new(reference, self.tag())
+    /// #    -> TaggedRef<'b, T> {
+    /// TaggedRef::new_implied(reference, self.tag())
     /// # }}
     /// ```
     ///
@@ -131,7 +146,7 @@ impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     /// ```
     /// # use tagged_pointer::TaggedRef;
     /// let (mut x, y) = (14_u32, 21_u32);
-    /// let mut tr = TaggedRef::<_, 2>::new(&x, 0);
+    /// let mut tr = TaggedRef::new::<2>(&x, 0);
     /// // Drops old `tr` so `x` no longer borrowed
     /// tr = tr.new_reference(&y);
     /// x += 1;
@@ -140,44 +155,45 @@ impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     pub fn new_reference<'b>(
         self,
         reference: &'b T,
-    ) -> TaggedRef<'b, T, BITS> {
-        TaggedRef::new(reference, self.tag())
+    ) -> TaggedRef<'b, T> {
+        TaggedRef::new_implied(reference, self.tag())
     }
 
-    /// Gets the tag stored by the tagged pointer. Equivalent to
+    /// Gets the tag stored by the tagged reference. Equivalent to
     /// [`self.get().1`](Self::get).
     pub fn tag(self) -> usize {
         self.get().1
     }
 
-    /// Sets the tag without modifying the pointer.
+    /// Sets the tag without modifying the reference. Only the lower `BITS`
+    /// bits of `tag` are stored.
     ///
     /// This method is simply equivalent to:
     ///
     /// ```
     /// # use tagged_pointer::TaggedRef;
-    /// # trait Ext { fn set_tag(&mut self, tag: usize); }
-    /// # impl<'a, T, const BITS: usize> Ext for TaggedRef<'a, T, BITS> {
-    /// # fn set_tag(&mut self, tag: usize) {
-    /// *self = Self::new(self.reference(), tag);
+    /// # trait Ext { fn set_tag<const BITS: u32>(&mut self, tag: usize); }
+    /// # impl<'a, T> Ext for TaggedRef<'a, T> {
+    /// # fn set_tag<const BITS: u32>(&mut self, tag: usize) {
+    /// *self = Self::new::<BITS>(self.reference(), tag);
     /// # }}
     /// ```
-    pub fn set_tag(&mut self, tag: usize) {
-        *self = Self::new(self.reference(), tag);
+    pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
+        *self = Self::new::<BITS>(self.reference(), tag);
     }
 }
 
-impl<'a, T, const BITS: Bits> Clone for TaggedRef<'a, T, BITS> {
+impl<'a, T> Clone for TaggedRef<'a, T> {
     fn clone(&self) -> Self {
         Self(self.0, self.1)
     }
 }
 
-impl<'a, T, const BITS: Bits> Copy for TaggedRef<'a, T, BITS> {}
+impl<'a, T> Copy for TaggedRef<'a, T> {}
 
 macro_rules! derive_common {
     ($name:ident) => {
-        impl<'a, T, const BITS: Bits> Deref for $name<'a, T, BITS> {
+        impl<'a, T> Deref for $name<'a, T> {
             type Target = T;
 
             fn deref(&self) -> &Self::Target {
@@ -185,13 +201,13 @@ macro_rules! derive_common {
             }
         }
 
-        impl<'a, T, const BITS: Bits> Borrow<T> for $name<'a, T, BITS> {
+        impl<'a, T> Borrow<T> for $name<'a, T> {
             fn borrow(&self) -> &T {
                 self.deref()
             }
         }
 
-        impl<'a, T, const BITS: Bits> fmt::Pointer for $name<'a, T, BITS> {
+        impl<'a, T> fmt::Pointer for $name<'a, T> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 fmt::Pointer::fmt(&self.reference(), f)
             }
@@ -211,32 +227,47 @@ derive_common!(TaggedRef);
 /// The tagged reference conceptually holds a `&'a mut T` and a certain number
 /// of bits of an integer tag.
 ///
-/// `BITS` specifies how many bits are used for the tag. The alignment of `T`
-/// must be large enough to store this many bits; see [`Self::new`].
+/// The number of bits that can be stored in the tag is determined as
+/// `mem::align_of::<T>().trailing_zeros()`, any higher bits in the tag will
+/// be masked away. See [`Self::new`] for more details.
 #[repr(transparent)]
-pub struct TaggedMutRef<'a, T, const BITS: Bits>(
-    TaggedPtr<T, BITS>,
+pub struct TaggedMutRef<'a, T>(
+    TaggedPtr<T>,
     PhantomData<&'a mut T>,
 );
 
-impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
-    /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
+impl<'a, T> TaggedMutRef<'a, T> {
+    /// Creates a new tagged reference. Only the lower `BITS` bits of `tag` are
     /// stored.
     ///
     /// A check is performed at compile time to ensure that the alignment of
-    /// `T` is not less than 2<sup>`BITS`</sup> (`1 << BITS`). This ensures
+    /// `T` is exactly 2<sup>`BITS`</sup> (i.e. that `BITS ==
+    /// mem::align_of::<T>().trailing_zeros()`). This ensures
     /// that all properly aligned pointers to `T` will be aligned enough to
     /// store the specified number of bits of the tag.
-    pub fn new(reference: &'a mut T, tag: usize) -> Self {
+    pub fn new<const BITS: Bits>(reference: &'a mut T, tag: usize) -> Self {
+        // Perform compile-time checks as close to call site so that
+        // diagnostics point to user code.
+        let _ = Check::<T, BITS>::ASSERT;
+        Self::new_implied(reference, tag)
+    }
+
+    /// Creates a new tagged reference. Identical to [`Self::new`] but without
+    /// needing to explicitly specify the expected number of available bits.
+    /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
+    /// 
+    /// Using this method is generally not recommended since the tag may be
+    /// unexpectedly truncated if the alignment of `T` is not what you expect.
+    pub fn new_implied(reference: &'a mut T, tag: usize) -> Self {
         let ptr = NonNull::from(reference);
-        let tag = tag & TaggedPtr::<T, BITS>::mask();
+        let tag = tag & TaggedPtr::<T>::mask();
         // SAFETY: `reference` is guaranteed to be aligned and `tag <= mask()`.
-        let ptr = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
+        let ptr = unsafe { TaggedPtr::new_implied_unchecked(ptr, tag) };
         Self(ptr, PhantomData)
     }
 
-    /// Immutably gets the pointer and tag stored by the tagged pointer. If you
-    /// need both the pointer and tag, this method may be more efficient than
+    /// Immutably gets the reference and tag stored by the tagged reference. If you
+    /// need both the reference and tag, this method may be more efficient than
     /// calling [`Self::tag`] and [`Self::reference`] separately.
     pub fn get(&self) -> (&T, usize) {
         // SAFETY: can only have been constructed with `TaggedMutRef::new`.
@@ -253,8 +284,8 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
         (ptr, tag)
     }
 
-    /// Mutably gets the pointer and tag stored by the tagged pointer. If you
-    /// need both the pointer and tag, this method may be more efficient than
+    /// Mutably gets the reference and tag stored by the tagged reference. If you
+    /// need both the reference and tag, this method may be more efficient than
     /// calling [`Self::tag`] and [`Self::reference_mut`] separately.
     pub fn get_mut(&mut self) -> (&mut T, usize) {
         // SAFETY: can only have been constructed with `TaggedMutRef::new`.
@@ -271,8 +302,8 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
         (ptr, tag)
     }
 
-    /// Deconstructs the tagged pointer to get back the arguments (pointer and
-    /// tag) passed to [`Self::new`]. If you need both the pointer and tag,
+    /// Deconstructs the tagged reference to get back the arguments (reference and
+    /// tag) passed to [`Self::new`]. If you need both the reference and tag,
     /// this method may be more efficient than calling [`Self::tag`] and
     /// [`Self::reference_inner`] separately.
     pub fn get_inner(self) -> (&'a mut T, usize) {
@@ -314,10 +345,10 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     /// # use tagged_pointer::TaggedMutRef;
     /// # trait Ext<'a, T>
     /// #    { fn set_reference(&mut self, reference: &'a mut T); }
-    /// # impl<'a, T, const BITS: usize> Ext<'a, T>
-    /// #    for TaggedMutRef<'a, T, BITS> {
+    /// # impl<'a, T> Ext<'a, T>
+    /// #    for TaggedMutRef<'a, T> {
     /// # fn set_reference(&mut self, reference: &'a mut T) {
-    /// *self = Self::new(reference, self.tag());
+    /// *self = Self::new_implied(reference, self.tag());
     /// # }}
     /// ```
     ///
@@ -327,7 +358,7 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     /// ```compile_fail
     /// # use tagged_pointer::TaggedMutRef;
     /// let (mut x, mut y) = (14_u32, 21_u32);
-    /// let mut tr = TaggedMutRef::<_, 2>::new(&mut x, 0);
+    /// let mut tr = TaggedMutRef::new::<2>(&mut x, 0);
     /// tr.set_reference(&mut y); // `x` stays borrowed
     /// x += 1; // use of borrowed `x`
     /// *tr += 1;
@@ -335,7 +366,7 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     ///
     /// If you run into this issue, use [`Self::new_reference`] instead.
     pub fn set_reference(&mut self, reference: &'a mut T) {
-        *self = Self::new(reference, self.tag());
+        *self = Self::new_implied(reference, self.tag());
     }
 
     /// Creates a new tagged reference with the same tag.
@@ -344,13 +375,13 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     ///
     /// ```
     /// # use tagged_pointer::TaggedMutRef;
-    /// # trait Ext<T, const BITS: usize> { fn set_reference<'b>
-    /// #    (&mut self, reference: &'b mut T) -> TaggedMutRef<'b, T, BITS>; }
-    /// # impl<'a, T, const BITS: usize> Ext<T, BITS>
-    /// #    for TaggedMutRef<'a, T, BITS> {
+    /// # trait Ext<T> { fn set_reference<'b>
+    /// #    (&mut self, reference: &'b mut T) -> TaggedMutRef<'b, T>; }
+    /// # impl<'a, T> Ext<T>
+    /// #    for TaggedMutRef<'a, T> {
     /// # fn set_reference<'b>(&mut self, reference: &'b mut T)
-    /// #    -> TaggedMutRef<'b, T, BITS> {
-    /// TaggedMutRef::new(reference, self.tag())
+    /// #    -> TaggedMutRef<'b, T> {
+    /// TaggedMutRef::new_implied(reference, self.tag())
     /// # }}
     /// ```
     ///
@@ -360,7 +391,7 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     /// ```
     /// # use tagged_pointer::TaggedMutRef;
     /// let (mut x, mut y) = (14_u32, 21_u32);
-    /// let mut tr = TaggedMutRef::<_, 2>::new(&mut x, 0);
+    /// let mut tr = TaggedMutRef::new::<2>(&mut x, 0);
     /// // Drops old `tr` so `x` no longer borrowed
     /// tr = tr.new_reference(&mut y);
     /// x += 1;
@@ -369,17 +400,18 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     pub fn new_reference<'b>(
         &self,
         reference: &'b mut T,
-    ) -> TaggedMutRef<'b, T, BITS> {
-        TaggedMutRef::new(reference, self.tag())
+    ) -> TaggedMutRef<'b, T> {
+        TaggedMutRef::new_implied(reference, self.tag())
     }
 
-    /// Gets the tag stored by the tagged pointer. Equivalent to
+    /// Gets the tag stored by the tagged reference. Equivalent to
     /// [`self.get().1`](Self::get).
     pub fn tag(&self) -> usize {
         self.get().1
     }
 
-    /// Sets the tag without modifying the pointer.
+    /// Sets the tag without modifying the reference. Only the lower `BITS`
+    /// bits of `tag` are stored.
     ///
     /// This method only requires a mutable reference to `self`, while being
     /// equivalent to the owned version:
@@ -387,12 +419,12 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     /// ```
     /// # use tagged_pointer::TaggedMutRef;
     /// let mut x = 14_u32;
-    /// let mut tr = TaggedMutRef::<_, 2>::new(&mut x, 0);
+    /// let mut tr = TaggedMutRef::new::<2>(&mut x, 0);
     /// // The following two are equivalent:
-    /// tr.set_tag(1);
-    /// tr = TaggedMutRef::new(tr.reference_inner(), 1);
+    /// tr.set_tag::<2>(1);
+    /// tr = TaggedMutRef::new::<2>(tr.reference_inner(), 1);
     /// ```
-    pub fn set_tag(&mut self, tag: usize) {
+    pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
         let mut ptr = NonNull::from(self.reference_mut());
         // SAFETY: We can extend the lifetime to `'a` since we know that this
         // is the true lifetime of the reference `self` holds. We temporarily
@@ -401,23 +433,23 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
         // then `self` would not get overwritten, luckily this would still be
         // ok because `reference` is immediately discarded on return.
         let reference = unsafe { ptr.as_mut() };
-        *self = Self::new(reference, tag);
+        *self = Self::new::<BITS>(reference, tag);
     }
 
-    /// Creates a new identical tagged pointer. Useful to mimic the reborrow
+    /// Creates a new identical tagged reference. Useful to mimic the reborrow
     /// which Rust automatically does for mutable references in various places.
     ///
     /// This method is simply equivalent to:
     ///
     /// ```
     /// # use tagged_pointer::TaggedMutRef;
-    /// # trait Ext<T, const BITS: usize> { fn reborrow<'b>(&'b mut self)
-    /// #    -> TaggedMutRef<'b, T, BITS>; }
-    /// # impl<'a, T, const BITS: usize> Ext<T, BITS>
-    /// #    for TaggedMutRef<'a, T, BITS> {
-    /// # fn reborrow<'b>(&'b mut self) -> TaggedMutRef<'b, T, BITS> {
+    /// # trait Ext<T> { fn reborrow<'b>(&'b mut self)
+    /// #    -> TaggedMutRef<'b, T>; }
+    /// # impl<'a, T> Ext<T>
+    /// #    for TaggedMutRef<'a, T> {
+    /// # fn reborrow<'b>(&'b mut self) -> TaggedMutRef<'b, T> {
     /// let (reference, tag) = self.get_mut();
-    /// TaggedMutRef::new(reference, tag)
+    /// TaggedMutRef::new_implied(reference, tag)
     /// # }}
     /// ```
     /// 
@@ -425,27 +457,27 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     /// 
     /// ```
     /// # use tagged_pointer::TaggedMutRef;
-    /// fn foo<T, const BITS: usize>(tr: TaggedMutRef<T, BITS>) {
+    /// fn foo<T>(tr: TaggedMutRef<T>) {
     ///     // ...
     /// }
     /// let mut x = 14_u32;
-    /// let mut tr = TaggedMutRef::<_, 2>::new(&mut x, 0);
+    /// let mut tr = TaggedMutRef::new::<2>(&mut x, 0);
     /// foo(tr.reborrow());
     /// *tr += 1; // cannot use `tr` without the `reborrow` above
     /// ```
-    pub fn reborrow<'b>(&'b mut self) -> TaggedMutRef<'b, T, BITS> {
+    pub fn reborrow<'b>(&'b mut self) -> TaggedMutRef<'b, T> {
         let (reference, tag) = self.get_mut();
-        TaggedMutRef::new(reference, tag)
+        TaggedMutRef::new_implied(reference, tag)
     }
 }
 
-impl<'a, T, const BITS: Bits> DerefMut for TaggedMutRef<'a, T, BITS> {
+impl<'a, T> DerefMut for TaggedMutRef<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.reference_mut()
     }
 }
 
-impl<'a, T, const BITS: Bits> BorrowMut<T> for TaggedMutRef<'a, T, BITS> {
+impl<'a, T> BorrowMut<T> for TaggedMutRef<'a, T> {
     fn borrow_mut(&mut self) -> &mut T {
         self.deref_mut()
     }

@@ -1,6 +1,6 @@
 [package]
 name = "tagged-pointer"
-version = "0.2.7-dev"
+version = "0.3.0-dev"
 edition = "2018"
 rust-version = "1.51"
 description = "Platform-independent space-efficient tagged pointers"
