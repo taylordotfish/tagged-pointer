@@ -30,6 +30,7 @@ pub struct PtrImpl<T>(
 
 impl<T> PtrImpl<T> {
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
+        Self::assert();
         let ptr = ptr.as_ptr().cast::<u8>();
 
         // Keep only the lower `BITS` bits of the tag.
@@ -47,6 +48,7 @@ impl<T> PtrImpl<T> {
     }
 
     pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        Self::assert();
         let ptr = ptr.as_ptr().cast::<u8>().wrapping_add(tag);
         // SAFETY: We require from the caller that `ptr` is properly aligned
         // and that `tag <= Self::MASK`, therefore, since both the alignment of

@@ -23,10 +23,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 fn compile<P: AsRef<Path>>(path: P) -> io::Result<bool> {
+    let path = path.as_ref();
+    if let Some(s) = path.to_str() {
+        println!("cargo:rerun-if-changed={}", s);
+    }
     let mut out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     out.push("feature-test");
     Ok(Command::new(env::var_os("RUSTC").unwrap())
-        .arg(path.as_ref())
+        .arg(path)
         .arg("-o")
         .arg(out)
         .arg("--crate-type=lib")
@@ -38,10 +42,12 @@ fn compile<P: AsRef<Path>>(path: P) -> io::Result<bool> {
 }
 
 fn main() -> io::Result<()> {
-    env::set_current_dir(PathBuf::from_iter(&["misc", "feature-test"]))?;
-    if compile("unsafe_op_in_unsafe_fn.rs")? {
+    let dir = PathBuf::from_iter(&["misc", "feature-test"]);
+    if compile(dir.join("unsafe_op_in_unsafe_fn.rs"))? {
         println!("cargo:rustc-cfg=has_unsafe_op_in_unsafe_fn");
     }
-    println!("cargo:rerun-if-changed=build.rs");
+    if compile(dir.join("const_assert.rs"))? {
+        println!("cargo:rustc-cfg=has_const_assert");
+    }
     Ok(())
 }
