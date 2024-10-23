@@ -155,15 +155,15 @@ impl<T, const BITS: Bits> Check<T, BITS> {
         let tz = mem::align_of::<T>().trailing_zeros();
         // The `BITS` constant was correctly provided to `new`.
         const_assert!(tz != 0 || BITS == 0, "`BITS` must be 0 (alignment of T is 1)");
-        const_assert!(tz != 1 || BITS == 1, "`BITS` must be 1 (alignment of T is 2)");
-        const_assert!(tz != 2 || BITS == 2, "`BITS` must be 2 (alignment of T is 4)");
-        const_assert!(tz != 3 || BITS == 3, "`BITS` must be 3 (alignment of T is 8)");
-        const_assert!(tz != 4 || BITS == 4, "`BITS` must be 4 (alignment of T is 16)");
-        const_assert!(tz != 5 || BITS == 5, "`BITS` must be 5 (alignment of T is 32)");
-        const_assert!(tz != 6 || BITS == 6, "`BITS` must be 6 (alignment of T is 64)");
-        const_assert!(tz != 7 || BITS == 7, "`BITS` must be 7 (alignment of T is 128)");
-        const_assert!(tz != 8 || BITS == 8, "`BITS` must be 8 (alignment of T is 256)");
-        const_assert!(BITS == tz, "`BITS` must equal align_of::<T>().trailing_zeros()");
+        const_assert!(tz != 1 || BITS <= 1, "`BITS` must be <= 1 (alignment of T is 2)");
+        const_assert!(tz != 2 || BITS <= 2, "`BITS` must be <= 2 (alignment of T is 4)");
+        const_assert!(tz != 3 || BITS <= 3, "`BITS` must be <= 3 (alignment of T is 8)");
+        const_assert!(tz != 4 || BITS <= 4, "`BITS` must be <= 4 (alignment of T is 16)");
+        const_assert!(tz != 5 || BITS <= 5, "`BITS` must be <= 5 (alignment of T is 32)");
+        const_assert!(tz != 6 || BITS <= 6, "`BITS` must be <= 6 (alignment of T is 64)");
+        const_assert!(tz != 7 || BITS <= 7, "`BITS` must be <= 7 (alignment of T is 128)");
+        const_assert!(tz != 8 || BITS <= 8, "`BITS` must be <= 8 (alignment of T is 256)");
+        const_assert!(BITS == tz, "`BITS` cannot exceed align_of::<T>().trailing_zeros()");
         // Ensure `1 << BITS` doesn't overflow.
         const_assert!(1_usize.checked_shl(BITS).is_some(), "`BITS` must be less than number of bits in `usize`");
         true
@@ -243,7 +243,7 @@ impl<T> TaggedPtr<T> {
     /// stored.
     ///
     /// A check is performed at compile time to ensure that the alignment of
-    /// `T` is exactly 2<sup>`BITS`</sup> (i.e. that `BITS ==
+    /// `T` is at least 2<sup>`BITS`</sup> (i.e. that `BITS <=
     /// mem::align_of::<T>().trailing_zeros()`). This ensures
     /// that all properly aligned pointers to `T` will be aligned enough to
     /// store the specified number of bits of the tag.
@@ -281,7 +281,7 @@ impl<T> TaggedPtr<T> {
     /// Creates a new tagged pointer.
     ///
     /// A check is performed at compile time to ensure that the alignment of
-    /// `T` is exactly 2<sup>`BITS`</sup> (i.e. that `BITS ==
+    /// `T` is at least 2<sup>`BITS`</sup> (i.e. that `BITS <=
     /// mem::align_of::<T>().trailing_zeros()`). This ensures
     /// that all properly aligned pointers to `T` will be aligned enough to
     /// store the specified number of bits of the tag.
