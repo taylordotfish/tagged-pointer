@@ -171,11 +171,11 @@ impl<T, const BITS: Bits> Check<T, BITS> {
 }
 
 impl<T> PtrImpl<T> {
+    /// The number of tag bits that can be stored.
     const BITS: u32 = mem::align_of::<T>().trailing_zeros();
 
-    /// The alignment required to store `BITS` tag bits. We ensured this
-    /// doesn't overflow earlier, so use `wrapping_shl` so that we get only
-    /// one compiler error.
+    /// The alignment required to store [`Self::BITS`] tag bits. Separate
+    /// compile-time checks ensure this value doesn't overflow.
     const ALIGNMENT: usize = 1_usize.wrapping_shl(Self::BITS);
 
     /// The bitmask that should be applied to the tag to ensure that it is
@@ -318,19 +318,6 @@ impl<T> TaggedPtr<T> {
     /// [“dereferenceable”](core::ptr#safety), this method may panic.
     pub fn get(self) -> (NonNull<T>, usize) {
         self.0.get()
-    }
-
-    /// Gets the (properly aligned) pointer and tag stored by the tagged
-    /// pointer.
-    ///
-    /// # Safety
-    ///
-    /// `self` must have been constructed with a `ptr` and `tag` which uphold
-    /// the safety criteria set out in [`Self::new_unchecked`]. Note that
-    /// [`Self::new`] internally masks its `tag` argument, and so only the
-    /// `ptr` restriction applies in that case.
-    pub unsafe fn get_unchecked(self) -> (NonNull<T>, usize) {
-        unsafe { self.0.get_unchecked() }
     }
 
     /// Gets the pointer stored by the tagged pointer, without the tag.

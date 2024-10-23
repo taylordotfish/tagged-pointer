@@ -76,9 +76,7 @@ impl<'a, T> TaggedRef<'a, T> {
 
     /// Gets the reference and tag stored by the tagged reference.
     pub fn get(self) -> (&'a T, usize) {
-        // SAFETY: can only have been constructed with `TaggedRef::new`.
-        // Thus `ptr` will be properly aligned and “dereferenceable”.
-        let (ptr, tag) = unsafe { self.0.get_unchecked() };
+        let (ptr, tag) = self.0.get();
         // SAFETY: `ptr` is properly aligned and “dereferenceable”. The
         // underlying data is initialized and immutable since we hold a shared
         // reference to `self` which has a `PhantomData<&'a T>`. We respect
@@ -273,9 +271,7 @@ impl<'a, T> TaggedMutRef<'a, T> {
     /// need both the reference and tag, this method may be more efficient than
     /// calling [`Self::tag`] and [`Self::reference`] separately.
     pub fn get(&self) -> (&T, usize) {
-        // SAFETY: can only have been constructed with `TaggedMutRef::new`.
-        // Thus `ptr` will be properly aligned and “dereferenceable”.
-        let (ptr, tag) = unsafe { self.0.get_unchecked() };
+        let (ptr, tag) = self.0.get();
         // SAFETY: `ptr` is properly aligned and “dereferenceable”. The
         // underlying data is initialized and immutable since we hold a shared
         // reference to a unique `self` (`TaggedMutRef` is not duplicable)
@@ -293,7 +289,7 @@ impl<'a, T> TaggedMutRef<'a, T> {
     pub fn get_mut(&mut self) -> (&mut T, usize) {
         // SAFETY: can only have been constructed with `TaggedMutRef::new`.
         // Thus `ptr` will be properly aligned and “dereferenceable”.
-        let (mut ptr, tag) = unsafe { self.0.get_unchecked() };
+        let (mut ptr, tag) = self.0.get();
         // SAFETY: `ptr` is properly aligned and “dereferenceable”. The
         // underlying data is initialized and unaliased since we hold a unique
         // reference to a unique `self` (`TaggedMutRef` is not duplicable)
@@ -312,7 +308,7 @@ impl<'a, T> TaggedMutRef<'a, T> {
     pub fn get_inner(self) -> (&'a mut T, usize) {
         // SAFETY: can only have been constructed with `TaggedMutRef::new`.
         // Thus `ptr` will be properly aligned and “dereferenceable”.
-        let (mut ptr, tag) = unsafe { self.0.get_unchecked() };
+        let (mut ptr, tag) = self.0.get();
         // SAFETY: `ptr` is properly aligned and “dereferenceable”. The
         // underlying data is initialized and unaliased since we hold a unique
         // `self` (`TaggedMutRef` is not duplicable) which has a

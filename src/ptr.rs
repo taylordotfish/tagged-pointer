@@ -78,17 +78,6 @@ impl<T> PtrImpl<T> {
         // `NonNull<T>`.
         (unsafe { NonNull::new_unchecked(ptr) }, tag)
     }
-
-    pub unsafe fn get_unchecked(self) -> (NonNull<T>, usize) {
-        let ptr = self.0.as_ptr();
-        let tag = ptr as usize & Self::MASK;
-        let ptr = ptr.wrapping_sub(tag).cast::<T>();
-        // SAFETY: We require that `self` was constructed with a properly
-        // aligned `NonNull<T>` and with a `tag <= Self::MASK`, therefore after
-        // subtracting `tag`, we get the original value of the `ptr` parameter,
-        // which cannot be null because it was a `NonNull<T>`.
-        (unsafe { NonNull::new_unchecked(ptr) }, tag)
-    }
 }
 
 impl<T> Clone for PtrImpl<T> {

@@ -40,10 +40,6 @@ impl<T> PtrImpl<T> {
     pub fn get(self) -> (NonNull<T>, usize) {
         (self.ptr, self.tag)
     }
-
-    pub unsafe fn get_unchecked(self) -> (NonNull<T>, usize) {
-        self.get()
-    }
 }
 
 impl<T> Clone for PtrImpl<T> {
