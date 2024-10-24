@@ -23,7 +23,7 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
-use super::{Bits, Check, TaggedPtr};
+use super::{Bits, TaggedPtr};
 
 /// A tagged immutable reference: a space-efficient representation of a
 /// reference and integer tag.
@@ -54,23 +54,20 @@ impl<'a, T> TaggedRef<'a, T> {
     /// that all properly aligned pointers to `T` will be aligned enough to
     /// store the specified number of bits of the tag.
     pub fn new<const BITS: Bits>(reference: &'a T, tag: usize) -> Self {
-        // Perform compile-time checks as close to call site so that
-        // diagnostics point to user code.
-        let _ = Check::<T, BITS>::ASSERT;
         Self::new_implied(reference, tag)
     }
 
     /// Creates a new tagged reference. Identical to [`Self::new`] but without
     /// needing to explicitly specify the expected number of available bits.
     /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
-    /// 
+    ///
     /// Using this method is generally not recommended since the tag may be
     /// unexpectedly truncated if the alignment of `T` is not what you expect.
     pub fn new_implied(reference: &'a T, tag: usize) -> Self {
         let ptr = NonNull::from(reference);
         let tag = tag & TaggedPtr::<T>::mask();
         // SAFETY: `reference` is guaranteed to be aligned and `tag <= mask()`.
-        let ptr = unsafe { TaggedPtr::new_implied_unchecked(ptr, tag) };
+        let ptr = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
         Self(ptr, PhantomData)
     }
 
@@ -177,9 +174,6 @@ impl<'a, T> TaggedRef<'a, T> {
     /// # }}
     /// ```
     pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
-        // Perform compile-time checks as close to call site so that
-        // diagnostics point to user code.
-        let _ = Check::<T, BITS>::ASSERT;
         *self = Self::new_implied(self.reference(), tag);
     }
 }
@@ -247,23 +241,20 @@ impl<'a, T> TaggedMutRef<'a, T> {
     /// that all properly aligned pointers to `T` will be aligned enough to
     /// store the specified number of bits of the tag.
     pub fn new<const BITS: Bits>(reference: &'a mut T, tag: usize) -> Self {
-        // Perform compile-time checks as close to call site so that
-        // diagnostics point to user code.
-        let _ = Check::<T, BITS>::ASSERT;
         Self::new_implied(reference, tag)
     }
 
     /// Creates a new tagged reference. Identical to [`Self::new`] but without
     /// needing to explicitly specify the expected number of available bits.
     /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
-    /// 
+    ///
     /// Using this method is generally not recommended since the tag may be
     /// unexpectedly truncated if the alignment of `T` is not what you expect.
     pub fn new_implied(reference: &'a mut T, tag: usize) -> Self {
         let ptr = NonNull::from(reference);
         let tag = tag & TaggedPtr::<T>::mask();
         // SAFETY: `reference` is guaranteed to be aligned and `tag <= mask()`.
-        let ptr = unsafe { TaggedPtr::new_implied_unchecked(ptr, tag) };
+        let ptr = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
         Self(ptr, PhantomData)
     }
 
@@ -424,9 +415,6 @@ impl<'a, T> TaggedMutRef<'a, T> {
     /// tr = TaggedMutRef::new::<2>(tr.reference_inner(), 1);
     /// ```
     pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
-        // Perform compile-time checks as close to call site so that
-        // diagnostics point to user code.
-        let _ = Check::<T, BITS>::ASSERT;
         let mut ptr = NonNull::from(self.reference_mut());
         // SAFETY: We can extend the lifetime to `'a` since we know that this
         // is the true lifetime of the reference `self` holds. We temporarily
@@ -454,9 +442,9 @@ impl<'a, T> TaggedMutRef<'a, T> {
     /// TaggedMutRef::new_implied(reference, tag)
     /// # }}
     /// ```
-    /// 
+    ///
     /// Use this for example when calling a function:
-    /// 
+    ///
     /// ```
     /// # use tagged_pointer::TaggedMutRef;
     /// fn foo<T>(tr: TaggedMutRef<T>) {
