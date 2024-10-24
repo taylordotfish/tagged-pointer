@@ -16,47 +16,49 @@
  * limitations under the License.
  */
 
-use super::messages;
+use super::{NumBits, messages};
 use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
 #[repr(transparent)]
-pub struct PtrImpl<T>(
+pub struct PtrImpl<T, B = PhantomData<T>>(
     NonNull<u8>,
-    PhantomData<NonNull<T>>,
+    PhantomData<(NonNull<T>, fn() -> B)>,
 );
 
-impl<T> PtrImpl<T> {
+impl<T, B: NumBits> PtrImpl<T, B> {
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
         Self::assert();
-        let ptr = ptr.as_ptr().cast::<u8>();
-
-        // Keep only the lower `BITS` bits of the tag.
-        let tag = tag & Self::MASK;
-        let offset = ptr.align_offset(Self::ALIGNMENT);
+        let byte_ptr = ptr.as_ptr().cast::<u8>();
+        let offset = byte_ptr.align_offset(Self::ALIGNMENT);
         assert!(offset != usize::MAX, "{}", messages::ALIGN_OFFSET_FAILED);
-
         // Check that none of the bits we're about to use are already set. If
         // `ptr` is aligned enough, we expect `offset` to be zero, but it could
         // theoretically be a nonzero multiple of `Self::ALIGNMENT`, so apply
         // the mask just in case.
         assert!(offset & Self::MASK == 0, "`ptr` is not aligned enough");
-        let ptr = NonNull::new(ptr.wrapping_add(tag));
-        Self(ptr.expect(messages::WRAPPED_TO_NULL), PhantomData)
+        // SAFETY: We just verified that `ptr` is suitably aligned, and `tag`
+        // cannot exceed `Self::ALIGNMENT` after being masked.
+        unsafe { Self::new_unchecked(ptr, tag & Self::MASK) }
     }
 
+    /// # Safety
+    ///
+    /// * `ptr` must be aligned to at least [`Self::ALIGNMENT`] (if `ptr` is
+    ///   properly aligned for its type, this requirement is automatically
+    ///   fulfilled).
+    /// * `tag` must be less than [`Self::ALIGNMENT`].
     pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
         Self::assert();
-        let ptr = ptr.as_ptr().cast::<u8>().wrapping_add(tag);
-        // SAFETY: We require from the caller that `ptr` is properly aligned
-        // and that `tag <= Self::MASK`, therefore, since both the alignment of
-        // `T` and `usize::MAX + 1` are a power of 2 adding `tag` cannot cross
-        // the alignment boundary to the next object (and overflow to zero).
-        // This combined with the fact that `ptr` came from a `NonNull<T>`,
-        // means that the sum cannot be null.
-        Self(unsafe { NonNull::new_unchecked(ptr) }, PhantomData)
+        let tagged = ptr.as_ptr().cast::<u8>().wrapping_add(tag);
+        // SAFETY: Because `usize::MAX` is one less than a power of 2, `ptr`
+        // (necessarily divisible by `Self::ALIGNMENT`) cannot be more than
+        // `usize::MAX + 1 - Self::ALIGNMENT`. `tag` is strictly less than
+        // `Self::ALIGNMENT`, so `tagged` cannot exceed `usize::MAX`; thus, it
+        // cannot wrap to null.
+        Self(unsafe { NonNull::new_unchecked(tagged) }, PhantomData)
     }
 
     pub fn get(self) -> (NonNull<T>, usize) {
@@ -80,25 +82,25 @@ impl<T> PtrImpl<T> {
     }
 }
 
-impl<T> Clone for PtrImpl<T> {
+impl<T, B> Clone for PtrImpl<T, B> {
     fn clone(&self) -> Self {
         Self(self.0, self.1)
     }
 }
 
-impl<T> PartialEq for PtrImpl<T> {
+impl<T, B> PartialEq for PtrImpl<T, B> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T> Ord for PtrImpl<T> {
+impl<T, B> Ord for PtrImpl<T, B> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T> Hash for PtrImpl<T> {
+impl<T, B> Hash for PtrImpl<T, B> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }

@@ -16,5 +16,4 @@
  * limitations under the License.
  */
 
-pub const WRAPPED_TO_NULL: &str = include_str!("wrapped-to-null");
 pub const ALIGN_OFFSET_FAILED: &str = include_str!("align-offset-failed");
