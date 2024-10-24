@@ -16,17 +16,20 @@
  * limitations under the License.
  */
 
+use super::NumBits;
 use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
 use core::ptr::NonNull;
+use core::marker::PhantomData;
 
-pub struct PtrImpl<T> {
+pub struct PtrImpl<T, B = PhantomData<T>> {
     ptr: NonNull<T>,
     tag: usize,
 }
 
-impl<T> PtrImpl<T> {
+impl<T, B: NumBits> PtrImpl<T, B> {
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
+        Self::assert();
         Self {
             ptr,
             tag: tag & Self::MASK,
@@ -34,6 +37,8 @@ impl<T> PtrImpl<T> {
     }
 
     pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        Self::assert();
+        debug_assert!(tag < Self::ALIGNMENT);
         Self::new(ptr, tag)
     }
 
@@ -42,29 +47,20 @@ impl<T> PtrImpl<T> {
     }
 }
 
-impl<T> Clone for PtrImpl<T> {
-    fn clone(&self) -> Self {
-        Self {
-            ptr: self.ptr,
-            tag: self.tag,
-        }
-    }
-}
-
 impl<T> PartialEq for PtrImpl<T> {
     fn eq(&self, other: &Self) -> bool {
-        (self.ptr, self.tag) == (other.ptr, other.tag)
+        self.get() == other.get()
     }
 }
 
 impl<T> Ord for PtrImpl<T> {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.ptr, self.tag).cmp(&(other.ptr, other.tag))
+        self.get().cmp(&other.get())
     }
 }
 
 impl<T> Hash for PtrImpl<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        (self.ptr, self.tag).hash(state);
+        self.get().hash(state);
     }
 }

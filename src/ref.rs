@@ -23,7 +23,8 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
-use super::{Bits, TaggedPtr};
+use super::Bits;
+use super::implied::TaggedPtr;
 
 /// A tagged immutable reference: a space-efficient representation of a
 /// reference and integer tag.
