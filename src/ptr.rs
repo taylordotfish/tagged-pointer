@@ -52,6 +52,7 @@ impl<T, B: NumBits> PtrImpl<T, B> {
     /// * `tag` must be less than [`Self::ALIGNMENT`].
     pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
         Self::assert();
+        debug_assert!(tag < Self::ALIGNMENT);
         let tagged = ptr.as_ptr().cast::<u8>().wrapping_add(tag);
         // SAFETY: Because `usize::MAX` is one less than a power of 2, `ptr`
         // (necessarily divisible by `Self::ALIGNMENT`) cannot be more than

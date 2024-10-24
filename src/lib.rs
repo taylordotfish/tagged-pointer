@@ -126,9 +126,6 @@ pub use r#ref::{TaggedMutRef, TaggedRef};
 #[cfg(any(test, doctest))]
 mod tests;
 
-/// see, e.g., [`u32::BITS`].
-type Bits = u32;
-
 #[cfg(has_const_assert)]
 use core::assert as const_assert;
 
@@ -145,6 +142,23 @@ macro_rules! const_assert {
     ($cond:expr, $msg:literal $(,)?) => {{
         let _ = [$msg][!$cond as usize];
     }};
+}
+
+/// See, e.g., [`u32::BITS`].
+type Bits = u32;
+
+trait NumBits {
+    const BITS: u32;
+}
+
+impl<T> NumBits for PhantomData<T> {
+    const BITS: u32 = mem::align_of::<T>().trailing_zeros();
+}
+
+struct ConstBits<const N: u32>;
+
+impl<const N: u32> NumBits for ConstBits<N> {
+    const BITS: u32 = N;
 }
 
 impl<T, B: NumBits> PtrImpl<T, B> {
@@ -222,6 +236,127 @@ impl<T, B> PartialOrd for PtrImpl<T, B> {
     }
 }
 
+macro_rules! impl_tagged_ptr_common {
+    ([$($ty_params:tt)*], $ty:ty, $name_str:literal, $doctest_context:literal $(,)?) => {
+        impl<$($ty_params)*> $ty {
+            /// Gets the pointer and tag stored by the tagged pointer. If you
+            /// need both the pointer and tag, this method may be more
+            /// efficient than calling [`Self::ptr`] and [`Self::tag`]
+            /// separately.
+            pub fn get(self) -> (NonNull<T>, usize) {
+                self.0.get()
+            }
+
+            /// Gets the pointer stored by the tagged pointer, without the tag.
+            /// Equivalent to [`self.get().0`](Self::get).
+            pub fn ptr(self) -> NonNull<T> {
+                self.0.ptr()
+            }
+
+            /// Sets the pointer without modifying the tag.
+            ///
+            /// This method is simply equivalent to:
+            ///
+            /// ```
+            /// # use core::ptr::NonNull;
+            /// # trait Ext<T> { fn set_ptr(&mut self, ptr: NonNull<T>); }
+            #[doc = $doctest_context]
+            /// # { fn set_ptr(&mut self, ptr: NonNull<T>) {
+            /// *self = Self::new(ptr, self.tag());
+            /// # }}
+            /// ```
+            ///
+            /// See [`Self::new`] for information on argument validity and
+            /// panics.
+            pub fn set_ptr(&mut self, ptr: NonNull<T>) {
+                self.0.set_ptr(ptr)
+            }
+
+            /// Gets the tag stored by the tagged pointer. Equivalent to
+            /// [`self.get().1`](Self::get).
+            pub fn tag(self) -> usize {
+                self.0.tag()
+            }
+
+            /// Sets the tag without modifying the pointer.
+            ///
+            /// This method is simply equivalent to:
+            ///
+            /// ```
+            /// # trait Ext { fn set_tag(&mut self, tag: usize); }
+            #[doc = $doctest_context]
+            /// # { fn set_tag(&mut self, tag: usize) {
+            /// *self = Self::new(self.ptr(), tag);
+            /// # }}
+            /// ```
+            ///
+            /// See [`Self::new`] for more information.
+            pub fn set_tag(&mut self, tag: usize) {
+                self.0.set_tag(tag)
+            }
+        }
+
+        impl<$($ty_params)*> Clone for $ty {
+            fn clone(&self) -> Self {
+                Self(self.0)
+            }
+        }
+
+        impl<$($ty_params)*> Copy for $ty {}
+
+        impl<$($ty_params)*> PartialEq for $ty {
+            fn eq(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+        }
+
+        impl<$($ty_params)*> Eq for $ty {}
+
+        impl<$($ty_params)*> PartialOrd for $ty {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl<$($ty_params)*> Ord for $ty {
+            fn cmp(&self, other: &Self) -> Ordering {
+                self.0.cmp(&other.0)
+            }
+        }
+
+        impl<$($ty_params)*> Hash for $ty {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.0.hash(state);
+            }
+        }
+
+        impl<$($ty_params)*> fmt::Debug for $ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let (ptr, tag) = self.get();
+                f.debug_struct($name_str)
+                    .field("ptr", &ptr)
+                    .field("tag", &tag)
+                    .finish()
+            }
+        }
+    };
+}
+
+impl_tagged_ptr_common!(
+    [T],
+    TaggedPtr<T>,
+    "TaggedPtr",
+    "# impl<T> Ext for tagged_pointer::TaggedPtr<T>",
+);
+
+impl_tagged_ptr_common!(
+    [T, const BITS: Bits],
+    NonImpliedTaggedPtr<T, BITS>,
+    "NonImpliedTaggedPtr",
+    "# impl<T, const B: Bits> Ext for
+     tagged_pointer::NonImpliedTaggedPtr<T, B>",
+);
+
 /// A tagged pointer: a space-efficient representation of a pointer and integer
 /// tag.
 ///
@@ -239,188 +374,77 @@ impl<T, B> PartialOrd for PtrImpl<T, B> {
 pub struct TaggedPtr<T>(PtrImpl<T>);
 
 impl<T> TaggedPtr<T> {
-    /// Creates a new tagged pointer. Identical to [`Self::new`] but without
-    /// needing to explicitly specify the expected number of available bits.
-    /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
+    /// The number of bits that this tagged pointer can store. Equal to
+    /// <code>[mem::align_of]::\<T>().[trailing_zeros]()</code> (the base-2
+    /// logarithm of the alignment of `T`).
     ///
-    /// Using this method is generally not recommended since the tag may be
-    /// unexpectedly truncated if the alignment of `T` is not what you expect.
+    /// [trailing_zeros]: usize::trailing_zeros
+    pub const BITS: u32 = PtrImpl::<T>::BITS;
+
+    /// The maximum tag (inclusive) that this tagged pointer can store. Equal
+    /// to <code>[mem::align_of]::\<T>() - 1</code>.
+    pub const MAX_TAG: usize = PtrImpl::<T>::MASK;
+
+    /// Creates a new tagged pointer. Only the lower [`Self::BITS`] bits of
+    /// `tag` are stored.
+    ///
+    /// `ptr` should be “dereferenceable” in the sense defined by
+    /// [`core::ptr`](core::ptr#safety). Otherwise, the pointers returned by
+    /// [`Self::get`] and [`Self::ptr`] may not be equivalent to `ptr`---it may
+    /// be unsound to use them in ways that are sound for `ptr`.
+    ///
+    /// # Panics
+    ///
+    /// This function may panic if `ptr` is not properly aligned (i.e., aligned
+    /// to at least [`mem::align_of::<T>()`]).
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
         Self(PtrImpl::new(ptr, tag))
     }
 
-    /// Creates a new tagged pointer. Identical to [`Self::new_unchecked`] but without
-    /// needing to explicitly specify the expected number of available bits.
-    /// The number of bits is determined as `mem::align_of::<T>().trailing_zeros()`.
+    /// Creates a new tagged pointer.
     ///
-    /// Using this method is generally not recommended since the tag may be
-    /// unexpectedly truncated if the alignment of `T` is not what you expect.
+    /// Equivalent to [`Self::new`] but without some runtime checks. The
+    /// comments about `ptr` being “dereferenceable” also apply to this
+    /// function.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must be properly aligned (i.e., aligned to at least
+    ///   [`mem::align_of::<T>()`]).
+    /// * `tag` cannot be greater than [`Self::MAX_TAG`].
     pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        // SAFETY: Ensured by caller.
         Self(unsafe { PtrImpl::new_unchecked(ptr, tag) })
     }
-
-    /// Gets the pointer and tag stored by the tagged pointer. If you need
-    /// both the pointer and tag, this method may be more efficient than
-    /// calling [`Self::ptr`] and [`Self::tag`] separately.
-    ///
-    /// # Panics
-    ///
-    /// If the pointer provided to [`Self::new`] wasn't
-    /// [“dereferenceable”](core::ptr#safety), this method may panic.
-    pub fn get(self) -> (NonNull<T>, usize) {
-        self.0.get()
-    }
-
-    /// Gets the pointer stored by the tagged pointer, without the tag.
-    /// Equivalent to [`self.get().0`](Self::get).
-    ///
-    /// # Panics
-    ///
-    /// If the pointer provided to [`Self::new`] wasn't
-    /// [“dereferenceable”](core::ptr#safety), this method may panic.
-    pub fn ptr(self) -> NonNull<T> {
-        self.0.ptr()
-    }
-
-    /// Sets the pointer without modifying the tag.
-    ///
-    /// This method is simply equivalent to:
-    ///
-    /// ```
-    /// # use {core::ptr::NonNull, tagged_pointer::TaggedPtr};
-    /// # trait Ext<T> { fn set_ptr(&mut self, ptr: NonNull<T>); }
-    /// # impl<T> Ext<T> for TaggedPtr<T> {
-    /// # fn set_ptr(&mut self, ptr: NonNull<T>) {
-    /// *self = Self::new_implied(ptr, self.tag());
-    /// # }}
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// See [`Self::new`].
-    pub fn set_ptr(&mut self, ptr: NonNull<T>) {
-        self.0.set_ptr(ptr)
-    }
-
-    /// Gets the tag stored by the tagged pointer. Equivalent to
-    /// [`self.get().1`](Self::get).
-    ///
-    /// # Panics
-    ///
-    /// If the pointer provided to [`Self::new`] wasn't
-    /// [“dereferenceable”](core::ptr#safety), this method may panic.
-    pub fn tag(self) -> usize {
-        self.0.tag()
-    }
-
-    /// Sets the tag without modifying the pointer.
-    ///
-    /// This method is simply equivalent to:
-    ///
-    /// ```
-    /// # use tagged_pointer::TaggedPtr;
-    /// # trait Ext { fn set_tag<const BITS: u32>(&mut self, tag: usize); }
-    /// # impl<T> Ext for TaggedPtr<T> {
-    /// # fn set_tag<const BITS: u32>(&mut self, tag: usize) {
-    /// *self = Self::new::<BITS>(self.ptr(), tag);
-    /// # }}
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// See [`Self::new`].
-    pub fn set_tag<const BITS: Bits>(&mut self, tag: usize) {
-        self.0.set_tag(tag)
-    }
-
-    /// Returns the bitmask for the tag, use `tag & TaggedPtr::mask()` to
-    /// ensure safety of [`Self::new_unchecked`]. Calculated as
-    /// 2<sup>`BITS`</sup> - 1.
-    pub const fn mask() -> usize {
-        PtrImpl::<T>::MASK
-    }
-}
-
-impl<T> Clone for TaggedPtr<T> {
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl<T> Copy for TaggedPtr<T> {}
-
-impl<T> PartialEq for TaggedPtr<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T> Eq for TaggedPtr<T> {}
-
-impl<T> PartialOrd for TaggedPtr<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T> Ord for TaggedPtr<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl<T> Hash for TaggedPtr<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
-    }
-}
-
-impl<T> fmt::Debug for TaggedPtr<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (ptr, tag) = self.get();
-        f.debug_struct("TaggedPtr")
-            .field("ptr", &ptr)
-            .field("tag", &tag)
-            .finish()
-    }
-}
-
-trait NumBits {
-    const BITS: u32;
-}
-
-impl<T> NumBits for PhantomData<T> {
-    const BITS: u32 = mem::align_of::<T>().trailing_zeros();
-}
-
-struct ConstBits<const N: u32>;
-
-impl<const N: u32> NumBits for ConstBits<N> {
-    const BITS: u32 = N;
 }
 
 pub struct NonImpliedTaggedPtr<T, const BITS: Bits>(PtrImpl<T, ConstBits<BITS>>);
 
 impl<T, const BITS: Bits> NonImpliedTaggedPtr<T, BITS> {
+    /// The number of bits that this tagged pointer can store.
+    pub const BITS: u32 = BITS;
+
+    /// The maximum tag (inclusive) that this tagged pointer can store. Equal
+    /// to `(1 << BITS) - 1` (i.e., one less than 2 to the power of `BITS`).
+    pub const MAX_TAG: usize = PtrImpl::<T, ConstBits<BITS>>::MASK;
+
     /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
     /// stored.
     ///
-    /// A check is performed at compile time to ensure that the alignment of
-    /// `T` is at least 2<sup>`BITS`</sup> (i.e. that `BITS <=
-    /// mem::align_of::<T>().trailing_zeros()`). This ensures
-    /// that all properly aligned pointers to `T` will be aligned enough to
-    /// store the specified number of bits of the tag.
+    /// `ptr` should be “dereferenceable” in the sense defined by
+    /// [`core::ptr`](core::ptr#safety).[^1] Otherwise, the pointers returned
+    /// by [`Self::get`] and [`Self::ptr`] may not be equivalent to `ptr`---it
+    /// may be unsound to use them in ways that are sound for `ptr`.
     ///
     /// # Panics
     ///
-    /// `ptr` should be “dereferenceable” in the sense defined by
-    /// [`core::ptr`](core::ptr#safety).[^1] If it is not, this function or
-    /// methods of [`TaggedPtr`] may panic.
+    /// This function may panic if `ptr` is not aligned to at least
+    /// 2<sup>`BITS`</sup> (i.e.,
+    /// <code>[mem::align_of]::\<T>().[trailing_zeros]()</code> must be greater
+    /// than or equal to `BITS`). It is recommended that `ptr` be properly
+    /// aligned for `T`, which automatically fulfills this requirement.
     ///
-    /// It is recommended that `ptr` be properly aligned (i.e., aligned to at
-    /// least [`mem::align_of::<T>()`](mem::align_of)), but it may have a
-    /// smaller alignment. However, if its alignment is not at least
-    /// 2<sup>`BITS`</sup>, this function may panic.
+    /// [trailing_zeros]: usize::trailing_zeros
     ///
     /// [^1]: It is permissible for only the first 2<sup>`BITS`</sup> bytes of
     /// `ptr` to be dereferenceable.
@@ -428,67 +452,20 @@ impl<T, const BITS: Bits> NonImpliedTaggedPtr<T, BITS> {
         Self(PtrImpl::new(ptr, tag))
     }
 
-    pub fn get(self) -> (NonNull<T>, usize) {
-        self.0.get()
-    }
-
-    pub fn ptr(self) -> NonNull<T> {
-        self.0.ptr()
-    }
-
-    pub fn set_ptr(&mut self, ptr: NonNull<T>) {
-        self.0.set_ptr(ptr)
-    }
-
-    pub fn tag(self) -> usize {
-        self.0.tag()
-    }
-
-    pub fn set_tag(&mut self, tag: usize) {
-        self.0.set_tag(tag)
-    }
-}
-
-impl<T, const BITS: Bits> Clone for NonImpliedTaggedPtr<T, BITS> {
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl<T, const BITS: Bits> Copy for NonImpliedTaggedPtr<T, BITS> {}
-
-impl<T, const BITS: Bits> PartialEq for NonImpliedTaggedPtr<T, BITS> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T, const BITS: Bits> Eq for NonImpliedTaggedPtr<T, BITS> {}
-
-impl<T, const BITS: Bits> PartialOrd for NonImpliedTaggedPtr<T, BITS> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T, const BITS: Bits> Ord for NonImpliedTaggedPtr<T, BITS> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl<T, const BITS: Bits> Hash for NonImpliedTaggedPtr<T, BITS> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
-    }
-}
-
-impl<T, const BITS: Bits> fmt::Debug for NonImpliedTaggedPtr<T, BITS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (ptr, tag) = self.get();
-        f.debug_struct("NonImpliedTaggedPtr")
-            .field("ptr", &ptr)
-            .field("tag", &tag)
-            .finish()
+    /// Creates a new tagged pointer.
+    ///
+    /// Equivalent to [`Self::new`] but without some runtime checks. The
+    /// comments about `ptr` being “dereferenceable” also apply to this
+    /// function.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must be aligned to at least 2<sup>`BITS`</sup> (i.e.,
+    ///   <code>[mem::align_of]::\<T>().[trailing_zeros]()</code> must be
+    ///   greater than or equal to `BITS`).
+    /// * `tag` cannot be greater than [`Self::MAX_TAG`].
+    pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        // SAFETY: Ensured by caller.
+        Self(unsafe { PtrImpl::new_unchecked(ptr, tag) })
     }
 }

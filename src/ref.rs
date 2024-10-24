@@ -65,7 +65,7 @@ impl<'a, T> TaggedRef<'a, T> {
     /// unexpectedly truncated if the alignment of `T` is not what you expect.
     pub fn new_implied(reference: &'a T, tag: usize) -> Self {
         let ptr = NonNull::from(reference);
-        let tag = tag & TaggedPtr::<T>::mask();
+        let tag = tag & (core::mem::align_of::<T>() - 1);
         // SAFETY: `reference` is guaranteed to be aligned and `tag <= mask()`.
         let ptr = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
         Self(ptr, PhantomData)
@@ -252,7 +252,7 @@ impl<'a, T> TaggedMutRef<'a, T> {
     /// unexpectedly truncated if the alignment of `T` is not what you expect.
     pub fn new_implied(reference: &'a mut T, tag: usize) -> Self {
         let ptr = NonNull::from(reference);
-        let tag = tag & TaggedPtr::<T>::mask();
+        let tag = tag & (core::mem::align_of::<T>() - 1);
         // SAFETY: `reference` is guaranteed to be aligned and `tag <= mask()`.
         let ptr = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
         Self(ptr, PhantomData)
