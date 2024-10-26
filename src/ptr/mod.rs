@@ -116,7 +116,6 @@ macro_rules! impl_tagged_ptr_common {
         use core::fmt;
         use core::hash::{Hash, Hasher};
         use core::ptr::NonNull;
-        use crate::ptr::NumBits;
 
         impl<$($ty_params)*> TaggedPtr<$($ty_args)*> {
             /// Gets the pointer and tag stored by the tagged pointer.
@@ -176,18 +175,6 @@ macro_rules! impl_tagged_ptr_common {
             /// See [`Self::new`] for more information.
             pub fn set_tag(&mut self, tag: usize) {
                 *self = Self::new(self.ptr(), tag);
-            }
-
-            /// Forces compile-time checks to be run. This is already performed
-            /// by [`Self::new`] and [`Self::new_unchecked`], but this function
-            /// provides a way to run the checks without creating a new tagged
-            /// pointer.
-            pub(crate) fn assert() {
-                // Hack to retrieve the type of `self.0`.
-                fn assert<T, B: NumBits, X>(_: impl Fn(X) -> PtrImpl<T, B>) {
-                    PtrImpl::<T, B>::assert();
-                }
-                assert(|s: Self| s.0)
             }
         }
 
