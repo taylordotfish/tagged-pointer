@@ -20,7 +20,7 @@ use core::cmp::Ordering;
 use core::mem;
 use core::ptr::NonNull;
 use core::marker::PhantomData;
-use super::Bits;
+use crate::Bits;
 
 #[cfg_attr(feature = "fallback", allow(dead_code))]
 mod messages;
@@ -88,31 +88,15 @@ impl<T, B: NumBits> PtrImpl<T, B> {
         // evaluated (this type's soundness relies on its validity).
         assert!(Self::ASSERT);
     }
-
-    pub fn ptr(self) -> NonNull<T> {
-        self.get().0
-    }
-
-    pub fn set_ptr(&mut self, ptr: NonNull<T>) {
-        *self = Self::new(ptr, self.tag());
-    }
-
-    pub fn tag(self) -> usize {
-        self.get().1
-    }
-
-    pub fn set_tag(&mut self, tag: usize) {
-        *self = Self::new(self.ptr(), tag);
-    }
 }
-
-impl<T, B> Copy for PtrImpl<T, B> {}
 
 impl<T, B> Clone for PtrImpl<T, B> {
     fn clone(&self) -> Self {
         *self
     }
 }
+
+impl<T, B> Copy for PtrImpl<T, B> {}
 
 impl<T, B> Eq for PtrImpl<T, B> {}
 
@@ -125,18 +109,19 @@ impl<T, B> PartialOrd for PtrImpl<T, B> {
 macro_rules! impl_tagged_ptr_common {
     (
         [$($ty_params:tt)*],
-        $ty:ty,
-        $name_str:literal,
+        [$($ty_args:tt)*],
         $doctest_context:literal $(,)?
     ) => { const _: () = {
         use core::cmp::Ordering;
         use core::fmt;
         use core::hash::{Hash, Hasher};
         use core::ptr::NonNull;
+        use crate::ptr::NumBits;
 
-        impl<$($ty_params)*> $ty {
-            /// Gets the pointer and tag stored by the tagged pointer. If you
-            /// need both the pointer and tag, this method may be more
+        impl<$($ty_params)*> TaggedPtr<$($ty_args)*> {
+            /// Gets the pointer and tag stored by the tagged pointer.
+            ///
+            /// If you need both the pointer and tag, this method may be more
             /// efficient than calling [`Self::ptr`] and [`Self::tag`]
             /// separately.
             pub fn get(self) -> (NonNull<T>, usize) {
@@ -146,7 +131,7 @@ macro_rules! impl_tagged_ptr_common {
             /// Gets the pointer stored by the tagged pointer, without the tag.
             /// Equivalent to [`self.get().0`](Self::get).
             pub fn ptr(self) -> NonNull<T> {
-                self.0.ptr()
+                self.get().0
             }
 
             /// Sets the pointer without modifying the tag.
@@ -154,10 +139,11 @@ macro_rules! impl_tagged_ptr_common {
             /// This method is simply equivalent to:
             ///
             /// ```
-            /// # use core::ptr::NonNull;
-            /// # trait Ext<T> { fn set_ptr(&mut self, ptr: NonNull<T>); }
             #[doc = $doctest_context]
-            /// # { fn set_ptr(&mut self, ptr: NonNull<T>) {
+            /// # use core::ptr::NonNull;
+            /// # trait Ext<T> { fn f(&mut self, ptr: NonNull<T>); }
+            /// # impl<T> Ext<T> for TaggedPtr<T> {
+            /// # fn f(&mut self, ptr: NonNull<T>) {
             /// *self = Self::new(ptr, self.tag());
             /// # }}
             /// ```
@@ -165,13 +151,13 @@ macro_rules! impl_tagged_ptr_common {
             /// See [`Self::new`] for information on argument validity and
             /// panics.
             pub fn set_ptr(&mut self, ptr: NonNull<T>) {
-                self.0.set_ptr(ptr)
+                *self = Self::new(ptr, self.tag());
             }
 
             /// Gets the tag stored by the tagged pointer. Equivalent to
             /// [`self.get().1`](Self::get).
             pub fn tag(self) -> usize {
-                self.0.tag()
+                self.get().1
             }
 
             /// Sets the tag without modifying the pointer.
@@ -179,57 +165,70 @@ macro_rules! impl_tagged_ptr_common {
             /// This method is simply equivalent to:
             ///
             /// ```
-            /// # trait Ext { fn set_tag(&mut self, tag: usize); }
             #[doc = $doctest_context]
-            /// # { fn set_tag(&mut self, tag: usize) {
+            /// # trait Ext<T> { fn f(&mut self, tag: usize); }
+            /// # impl<T> Ext<T> for TaggedPtr<T> {
+            /// # fn f(&mut self, tag: usize) {
             /// *self = Self::new(self.ptr(), tag);
             /// # }}
             /// ```
             ///
             /// See [`Self::new`] for more information.
             pub fn set_tag(&mut self, tag: usize) {
-                self.0.set_tag(tag)
+                *self = Self::new(self.ptr(), tag);
+            }
+
+            /// Forces compile-time checks to be run. This is already performed
+            /// by [`Self::new`] and [`Self::new_unchecked`], but this function
+            /// provides a way to run the checks without creating a new tagged
+            /// pointer.
+            pub(crate) fn assert() {
+                // Hack to retrieve the type of `self.0`.
+                fn assert<T, B: NumBits, X>(_: impl Fn(X) -> PtrImpl<T, B>) {
+                    PtrImpl::<T, B>::assert();
+                }
+                assert(|s: Self| s.0)
             }
         }
 
-        impl<$($ty_params)*> Clone for $ty {
+        impl<$($ty_params)*> Clone for TaggedPtr<$($ty_args)*> {
             fn clone(&self) -> Self {
                 Self(self.0)
             }
         }
 
-        impl<$($ty_params)*> Copy for $ty {}
+        impl<$($ty_params)*> Copy for TaggedPtr<$($ty_args)*> {}
 
-        impl<$($ty_params)*> PartialEq for $ty {
+        impl<$($ty_params)*> Eq for TaggedPtr<$($ty_args)*> {}
+
+        impl<$($ty_params)*> PartialEq for TaggedPtr<$($ty_args)*> {
             fn eq(&self, other: &Self) -> bool {
                 self.0 == other.0
             }
         }
 
-        impl<$($ty_params)*> Eq for $ty {}
-
-        impl<$($ty_params)*> PartialOrd for $ty {
-            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-
-        impl<$($ty_params)*> Ord for $ty {
+        impl<$($ty_params)*> Ord for TaggedPtr<$($ty_args)*> {
             fn cmp(&self, other: &Self) -> Ordering {
                 self.0.cmp(&other.0)
             }
         }
 
-        impl<$($ty_params)*> Hash for $ty {
+        impl<$($ty_params)*> PartialOrd for TaggedPtr<$($ty_args)*> {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl<$($ty_params)*> Hash for TaggedPtr<$($ty_args)*> {
             fn hash<H: Hasher>(&self, state: &mut H) {
                 self.0.hash(state);
             }
         }
 
-        impl<$($ty_params)*> fmt::Debug for $ty {
+        impl<$($ty_params)*> fmt::Debug for TaggedPtr<$($ty_args)*> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let (ptr, tag) = self.get();
-                f.debug_struct($name_str)
+                f.debug_struct("TaggedPtr")
                     .field("ptr", &ptr)
                     .field("tag", &tag)
                     .finish()
@@ -243,7 +242,7 @@ pub mod implied;
 pub struct TaggedPtr<T, const BITS: Bits>(PtrImpl<T, ConstBits<BITS>>);
 
 impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
-    /// The number of bits that this tagged pointer can store.
+    /// The number of tag bits that this tagged pointer can store.
     pub const BITS: u32 = BITS;
 
     /// The maximum tag (inclusive) that this tagged pointer can store. Equal
@@ -274,8 +273,6 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
         Self(PtrImpl::new(ptr, tag))
     }
 
-    /// Creates a new tagged pointer.
-    ///
     /// Equivalent to [`Self::new`] but without some runtime checks. The
     /// comments about `ptr` being “dereferenceable” also apply to this
     /// function.
@@ -294,8 +291,6 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
 
 impl_tagged_ptr_common!(
     [T, const BITS: Bits],
-    TaggedPtr<T, BITS>,
-    "TaggedPtr",
-    "# impl<T, const B: Bits> Ext for
-     tagged_pointer::TaggedPtr<T, B>",
+    [T, BITS],
+    "# type TaggedPtr<T> = tagged_pointer::TaggedPtr<T, 0>;",
 );

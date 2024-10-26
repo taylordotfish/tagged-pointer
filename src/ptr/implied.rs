@@ -1,3 +1,5 @@
+#[cfg(doc)]
+use core::mem;
 use core::ptr::NonNull;
 use super::ptr_impl::PtrImpl;
 
@@ -64,7 +66,11 @@ impl<T> TaggedPtr<T> {
 
 impl_tagged_ptr_common!(
     [T],
-    TaggedPtr<T>,
-    "TaggedPtr",
-    "# impl<T> Ext for tagged_pointer::TaggedPtr<T>",
+    [T],
+    "# use tagged_pointer::implied::TaggedPtr;",
 );
+
+#[allow(dead_code)]
+fn allow_unused() {
+    let _ = TaggedPtr::<()>::assert;
+}

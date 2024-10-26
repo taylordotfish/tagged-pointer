@@ -131,16 +131,17 @@ macro_rules! const_assert {
 }
 
 mod ptr;
-mod r#ref;
+mod reference;
 #[cfg(any(test, doctest))]
 mod tests;
 
-pub use ptr::TaggedPtr;
-pub use r#ref::{TaggedMutRef, TaggedRef};
-
-pub mod implied {
-    pub use super::ptr::implied::TaggedPtr;
-}
-
 /// See, e.g., [`u32::BITS`].
 type Bits = u32;
+
+pub use ptr::TaggedPtr;
+pub use reference::{TaggedMutRef, TaggedRef};
+
+pub mod implied {
+    pub use super::ptr::implied::*;
+    pub use super::reference::implied::*;
+}
