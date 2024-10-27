@@ -22,8 +22,6 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr::NonNull;
 
-#[cfg_attr(feature = "fallback", allow(dead_code))]
-mod messages;
 #[path = "impl.rs"]
 mod ptr_impl;
 use ptr_impl::PtrImpl;
