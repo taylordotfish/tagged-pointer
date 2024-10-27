@@ -14,7 +14,5 @@ categories = ["data-structures", "no-std"]
 [features]
 fallback = []
 
-# Optional, for tests only.
-[dependencies.compiletest_rs]
-version = "0.10"
-optional = true
+# Optional, for tests only. Uncomment to enable.
+#dev-dependencies.compiletest_rs.version = "0.10"
