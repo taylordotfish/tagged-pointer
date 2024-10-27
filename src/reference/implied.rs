@@ -17,8 +17,8 @@
  * limitations under the License.
  */
 
-use core::marker::PhantomData;
 use crate::implied::TaggedPtr;
+use core::marker::PhantomData;
 
 macro_rules! impl_implied_tagged_ref_common {
     ($name:ident $(,)?) => {
@@ -53,27 +53,7 @@ impl<'a, T> TaggedRef<'a, T> {
 }
 
 impl_implied_tagged_ref_common!(TaggedRef);
-impl_tagged_ref_common!(
-    [T],
-    [T],
-    "# use tagged_pointer::implied::TaggedRef;",
-);
-
-/// A tagged mutable reference: a space-efficient representation of a reference
-/// and integer tag.
-///
-/// This type stores an exclusive reference and an integer tag without taking
-/// up more space than a normal reference (unless the fallback implementation
-/// is used; see the [crate documentation](crate#assumptions)).
-///
-/// The tagged reference conceptually holds a `&'a mut T` and a certain number
-/// of bits of an integer tag.
-///
-/// The number of bits that can be stored in the tag is determined as
-/// `mem::align_of::<T>().trailing_zeros()`, any higher bits in the tag will
-/// be masked away. See [`Self::new`] for more details.
-#[repr(transparent)]
-pub struct TaggedMutRef<'a, T>(TaggedPtr<T>, PhantomData<&'a mut T>);
+impl_tagged_ref_common!([T], [T], "# use tagged_pointer::implied::TaggedRef;");
 
 /// Mutable version of [`TaggedRef`].
 ///
@@ -81,6 +61,9 @@ pub struct TaggedMutRef<'a, T>(TaggedPtr<T>, PhantomData<&'a mut T>);
 /// parameter that determines how many tag bits to store. Instead, this type
 /// uses the largest possible tag size for a reference to `T`; see
 /// [`Self::BITS`] for the exact calculation.
+#[repr(transparent)]
+pub struct TaggedMutRef<'a, T>(TaggedPtr<T>, PhantomData<&'a mut T>);
+
 impl<'a, T> TaggedMutRef<'a, T> {
     /// Creates a new tagged mutable reference. Only the lower [`Self::BITS`]
     /// bits of `tag` are stored.

@@ -237,7 +237,9 @@ macro_rules! impl_tagged_ref_common {
             let ptr = reference.into();
             // SAFETY: References are necessarily aligned and dereferenceable.
             // The validity of `tag` is ensured by the caller.
-            let tp = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
+            let tp = unsafe {
+                TaggedPtr::new_unchecked_dereferenceable(ptr, tag)
+            };
             Self(tp, PhantomData)
         }
 
@@ -427,7 +429,9 @@ macro_rules! impl_tagged_mut_ref_common {
             let ptr = reference.into();
             // SAFETY: References are necessarily aligned and dereferenceable.
             // The validity of `tag` is ensured by the caller.
-            let tp = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
+            let tp = unsafe {
+                TaggedPtr::new_unchecked_dereferenceable(ptr, tag)
+            };
             Self(tp, PhantomData)
         }
 

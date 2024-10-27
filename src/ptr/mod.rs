@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
+use crate::Bits;
 use core::cmp::Ordering;
 use core::marker::PhantomData;
 use core::mem;
 use core::ptr::NonNull;
-use crate::Bits;
 
 #[cfg_attr(feature = "fallback", allow(dead_code))]
 mod messages;
@@ -64,24 +64,60 @@ impl<T, B: NumBits> PtrImpl<T, B> {
         let align = mem::align_of::<T>();
         let tz = mem::align_of::<T>().trailing_zeros();
         // Ensure `BITS` isn't too large.
-        const_assert!(tz != 0 || bits == 0, "`BITS` must be 0 (alignment of T is 1)");
-        const_assert!(tz != 1 || bits <= 1, "`BITS` must be <= 1 (alignment of T is 2)");
-        const_assert!(tz != 2 || bits <= 2, "`BITS` must be <= 2 (alignment of T is 4)");
-        const_assert!(tz != 3 || bits <= 3, "`BITS` must be <= 3 (alignment of T is 8)");
-        const_assert!(tz != 4 || bits <= 4, "`BITS` must be <= 4 (alignment of T is 16)");
-        const_assert!(tz != 5 || bits <= 5, "`BITS` must be <= 5 (alignment of T is 32)");
-        const_assert!(tz != 6 || bits <= 6, "`BITS` must be <= 6 (alignment of T is 64)");
-        const_assert!(tz != 7 || bits <= 7, "`BITS` must be <= 7 (alignment of T is 128)");
-        const_assert!(tz != 8 || bits <= 8, "`BITS` must be <= 8 (alignment of T is 256)");
-        const_assert!(bits <= tz, "`BITS` cannot exceed align_of::<T>().trailing_zeros()");
+        const_assert!(
+            tz != 0 || bits == 0,
+            "`BITS` must be 0 (alignment of T is 1)",
+        );
+        const_assert!(
+            tz != 1 || bits <= 1,
+            "`BITS` must be <= 1 (alignment of T is 2)",
+        );
+        const_assert!(
+            tz != 2 || bits <= 2,
+            "`BITS` must be <= 2 (alignment of T is 4)",
+        );
+        const_assert!(
+            tz != 3 || bits <= 3,
+            "`BITS` must be <= 3 (alignment of T is 8)",
+        );
+        const_assert!(
+            tz != 4 || bits <= 4,
+            "`BITS` must be <= 4 (alignment of T is 16)",
+        );
+        const_assert!(
+            tz != 5 || bits <= 5,
+            "`BITS` must be <= 5 (alignment of T is 32)",
+        );
+        const_assert!(
+            tz != 6 || bits <= 6,
+            "`BITS` must be <= 6 (alignment of T is 64)",
+        );
+        const_assert!(
+            tz != 7 || bits <= 7,
+            "`BITS` must be <= 7 (alignment of T is 128)",
+        );
+        const_assert!(
+            tz != 8 || bits <= 8,
+            "`BITS` must be <= 8 (alignment of T is 256)",
+        );
+        const_assert!(
+            bits <= tz,
+            "`BITS` cannot exceed align_of::<T>().trailing_zeros()",
+        );
         // Ensure `1 << BITS` doesn't overflow.
-        const_assert!(1_usize.checked_shl(bits).is_some(), "`BITS` must be less than number of bits in `usize`");
+        const_assert!(
+            1_usize.checked_shl(bits).is_some(),
+            "`BITS` must be less than number of bits in `usize`",
+        );
         // Assumption about the alignment of `T`. This should always succeed.
         const_assert!(align.is_power_of_two());
         // Assumption about the size of `T`. This should always succeed.
         const_assert!(size == 0 || size >= align);
         // Assumption about the size of `T`. This should always succeed.
-        const_assert!(size % align == 0, "expected size of `T` to be a multiple of alignment");
+        const_assert!(
+            size % align == 0,
+            "expected size of `T` to be a multiple of alignment",
+        );
         true
     };
 
@@ -235,11 +271,9 @@ with_bits_doc! {
     /// integer tag.
     ///
     /// This type stores a pointer and an integer tag without taking up more
-    /// space than a normal pointer (unless the fallback implementation is used;
-    /// see the [crate documentation](crate#assumptions)).
-    ///
-    /// The tagged pointer conceptually holds a [`NonNull<T>`] and a certain
-    /// number of bits of an integer tag.
+    /// space than a normal pointer. Conceptually, this type behaves as if it
+    /// contains a [`NonNull<T>`] and a certain number of bits of an integer
+    /// tag.
     #[repr(transparent)]
     pub struct TaggedPtr<T, const BITS: Bits>(PtrImpl<T, ConstBits<BITS>>);
 }
@@ -260,7 +294,7 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
     /// stored.
     ///
-    /// `ptr` should be “dereferenceable” in the sense defined by
+    /// `ptr` should be "dereferenceable" in the sense defined by
     /// [`core::ptr`](core::ptr#safety).[^1] Otherwise, the pointers returned
     /// by [`Self::get`] and [`Self::ptr`] may not be equivalent to `ptr`---it
     /// may be unsound to use them in ways that are sound for `ptr`.
@@ -289,7 +323,7 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     }
 
     /// Equivalent to [`Self::new`] but without some runtime checks. The
-    /// comments about `ptr` being “dereferenceable” also apply to this
+    /// comments about `ptr` being "dereferenceable" also apply to this
     /// function.
     ///
     /// # Safety
@@ -309,6 +343,23 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
         // SAFETY: Ensured by caller.
         Self(unsafe { PtrImpl::new_unchecked(ptr, tag) })
+    }
+
+    /// Like [`Self::new_unchecked`], but the pointer must be dereferenceable,
+    /// which allows better optimization.
+    ///
+    /// # Safety
+    ///
+    /// All conditions of [`Self::new_unchecked`] must be upheld, plus at least
+    /// the first 2<sup>`BITS`</sup> (i.e., `1 << BITS`) bytes of `ptr` must
+    /// be "dereferenceable" in the sense defined by
+    /// [`core::ptr`](core::ptr#safety).
+    pub unsafe fn new_unchecked_dereferenceable(
+        ptr: NonNull<T>,
+        tag: usize,
+    ) -> Self {
+        // SAFETY: Ensured by caller.
+        Self(unsafe { PtrImpl::new_unchecked_dereferenceable(ptr, tag) })
     }
 }
 

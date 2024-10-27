@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-use core::ptr::NonNull;
 use super::ptr_impl::PtrImpl;
+use core::ptr::NonNull;
 
 /// A tagged pointer with the maximum tag size for the given type.
 ///
@@ -51,7 +51,7 @@ impl<T> TaggedPtr<T> {
     /// Creates a new tagged pointer. Only the lower [`Self::BITS`] bits of
     /// `tag` are stored.
     ///
-    /// `ptr` should be “dereferenceable” in the sense defined by
+    /// `ptr` should be "dereferenceable" in the sense defined by
     /// [`core::ptr`](core::ptr#safety). Otherwise, the pointers returned by
     /// [`Self::get`] and [`Self::ptr`] may not be equivalent to `ptr`---it may
     /// be unsound to use them in ways that are sound for `ptr`.
@@ -67,7 +67,7 @@ impl<T> TaggedPtr<T> {
     /// Creates a new tagged pointer.
     ///
     /// Equivalent to [`Self::new`] but without some runtime checks. The
-    /// comments about `ptr` being “dereferenceable” also apply to this
+    /// comments about `ptr` being "dereferenceable" also apply to this
     /// function.
     ///
     /// # Safety
@@ -79,10 +79,22 @@ impl<T> TaggedPtr<T> {
         // SAFETY: Ensured by caller.
         Self(unsafe { PtrImpl::new_unchecked(ptr, tag) })
     }
+
+    /// Like [`Self::new_unchecked`], but the pointer must be dereferenceable,
+    /// which allows better optimization.
+    ///
+    /// # Safety
+    ///
+    /// All conditions of [`Self::new_unchecked`] must be upheld, plus `ptr`
+    /// must be "dereferenceable" in the sense defined by
+    /// [`core::ptr`](core::ptr#safety).
+    pub unsafe fn new_unchecked_dereferenceable(
+        ptr: NonNull<T>,
+        tag: usize,
+    ) -> Self {
+        // SAFETY: Ensured by caller.
+        Self(unsafe { PtrImpl::new_unchecked_dereferenceable(ptr, tag) })
+    }
 }
 
-impl_tagged_ptr_common!(
-    [T],
-    [T],
-    "# use tagged_pointer::implied::TaggedPtr;",
-);
+impl_tagged_ptr_common!([T], [T], "# use tagged_pointer::implied::TaggedPtr;");

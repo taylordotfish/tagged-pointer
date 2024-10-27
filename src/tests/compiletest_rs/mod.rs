@@ -18,7 +18,7 @@
  */
 
 use compiletest_rs::common::Mode;
-use compiletest_rs::{run_tests, Config};
+use compiletest_rs::{Config, run_tests};
 use std::process::Command;
 
 #[test]

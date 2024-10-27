@@ -23,14 +23,12 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate)]
 
-//! This crate provides an implementation of [tagged pointers]: pointers that
-//! also contain an integer tag in a space-efficient manner.
+//! This crate provides an implementation of [tagged pointers]: a
+//! space-efficient representation of a pointer and integer tag. In particular,
+//! both [`TaggedPtr`] and [`Option<TaggedPtr>`] are the size of a pointer
+//! despite containing both a pointer and tag.
 //!
 //! [tagged pointers]: https://en.wikipedia.org/wiki/Tagged_pointer
-//!
-//! Unless the fallback implementation is used (see the
-//! [Assumptions](#assumptions) section below), both [`TaggedPtr`] and
-//! [`Option<TaggedPtr>`] will be the size of a pointer.
 //!
 //! This crate depends only on [`core`], so it can be used in `no_std`
 //! environments.
@@ -73,40 +71,24 @@
 //! Assumptions
 //! -----------
 //!
-//! This crate relies on [`pointer::align_offset`][`align_offset`] not failing
-//! under certain circumstances. Specifically, [`align_offset`], when called in
-//! a non-const context on a pointer to [`u8`], must succeed when the desired
-//! alignment is less than or equal to the alignment of the allocation pointed
-//! to by the provided pointer. In practice, this is true, even in [Miri] with
-//! the `-Zmiri-symbolic-alignment-check` flag, but the specifications of
-//! [`align_offset`] technically allow an implementation not to follow this
-//! behavior. If you experience issues due to this, please file an issue in the
-//! [Git repository]. As a workaround, you can enable the `fallback` feature,
-//! which avoids relying on [`align_offset`] at the cost of making
-//! [`TaggedPtr`] twice as large.
+//! This crate avoids making assumptions about the representations of pointers.
+//! In particular, it does not cast pointers to `usize` and assume that the
+//! lower bits of that number can be used for tagging. There exist
+//! architectures that do not allow reusing the lower bits of aligned pointers
+//! in this manner, and even if none are currently supported by Rust, they
+//! could be added in the future. This crate’s approach also works better with
+//! strict provenance.
 //!
-//! [Miri]: https://github.com/rust-lang/miri
+//! Previously, this crate relied on assumptions about the behavior of
+//! [`pointer::align_offset`] in certain circumstances. These assumptions were
+//! effectively always true, but were not strictly guaranteed, so a fallback
+//! implementation was provided with the crate feature `fallback`, which would
+//! avoid relying on this assumption at the cost of space efficiency.
 //!
-//! Note that this crate is always sound: an implementation of [`align_offset`]
-//! that doesn’t follow the required behavior may cause panics, but not
-//! undefined behavior.
+//! However, as of Rust 1.78, this assumption is no longer necessary:
+//! [`pointer::align_offset`] is [guaranteed to behave as required][121201].
 //!
-//! [`align_offset`]:
-//! https://doc.rust-lang.org/std/primitive.pointer.html#method.align_offset
-//! [Git repository]: https://github.com/taylordotfish/tagged-pointer
-//!
-//! Unfortunately, there’s currently no way to implement space-efficient tagged
-//! pointers in Rust without making some assumptions. However, this approach
-//! has some advantages over the usual method of casting the pointer to a
-//! [`usize`] and reusing the lower bits: the usual approach makes
-//! platform-specific assumptions about the representation of pointers (which
-//! currently apply to all platforms supported by rustc but could be
-//! invalidated if support for new architectures is added, and there are
-//! real architectures which do not allow reusing the lower bits of aligned
-//! pointers), whereas this crate’s assumptions are platform-independent (aside
-//! from the requirements already imposed by Rust, like having 8-bit bytes) and
-//! are satisfied by all known implementations of Rust, including Miri with
-//! `-Zmiri-symbolic-alignment-check`.
+//! [121201]: https://github.com/rust-lang/rust/pull/121201/
 
 #[cfg(has_const_assert)]
 macro_rules! const_assert {

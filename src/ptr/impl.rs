@@ -62,6 +62,25 @@ impl<T, B: NumBits> PtrImpl<T, B> {
         Self(unsafe { NonNull::new_unchecked(tagged) }, PhantomData)
     }
 
+    /// # Safety
+    ///
+    /// All the conditions of [`Self::new_unchecked`] must be upheld, plus
+    /// the first [`Self::ALIGNMENT`] bytes of `ptr` must be
+    /// [dereferenceable](core::ptr#safety)
+    pub unsafe fn new_unchecked_dereferenceable(
+        ptr: NonNull<T>,
+        tag: usize,
+    ) -> Self {
+        Self::assert();
+        debug_assert!(tag < Self::ALIGNMENT);
+        // SAFETY: Caller ensures this is within the bounds of the same
+        // allocated object.
+        let tagged = unsafe { ptr.as_ptr().cast::<u8>().add(tag) };
+        // SAFETY: `pointer::add` cannot wrap to null if its safety conditions
+        // are met.
+        Self(unsafe { NonNull::new_unchecked(tagged) }, PhantomData)
+    }
+
     pub fn get(self) -> (NonNull<T>, usize) {
         let ptr = self.0.as_ptr();
         let offset = ptr.align_offset(Self::ALIGNMENT);

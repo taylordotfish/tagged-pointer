@@ -36,10 +36,21 @@ impl<T, B: NumBits> PtrImpl<T, B> {
         }
     }
 
-    pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+    fn new_unchecked_impl(ptr: NonNull<T>, tag: usize) -> Self {
         Self::assert();
         debug_assert!(tag < Self::ALIGNMENT);
         Self::new(ptr, tag)
+    }
+
+    pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
+        Self::new_unchecked_impl(ptr, tag)
+    }
+
+    pub unsafe fn new_unchecked_dereferenceable(
+        ptr: NonNull<T>,
+        tag: usize,
+    ) -> Self {
+        Self::new_unchecked_impl(ptr, tag)
     }
 
     pub fn get(self) -> (NonNull<T>, usize) {
