@@ -17,13 +17,14 @@
  */
 
 use core::cmp::Ordering;
+use core::marker::PhantomData;
 use core::mem;
 use core::ptr::NonNull;
-use core::marker::PhantomData;
 use crate::Bits;
 
 #[cfg_attr(feature = "fallback", allow(dead_code))]
 mod messages;
+#[path = "impl.rs"]
 mod ptr_impl;
 use ptr_impl::PtrImpl;
 
@@ -35,10 +36,13 @@ impl<T> NumBits for PhantomData<T> {
     const BITS: u32 = mem::align_of::<T>().trailing_zeros();
 }
 
-struct ConstBits<const N: u32>;
+struct ConstBits<const N: Bits>;
 
-impl<const N: u32> NumBits for ConstBits<N> {
-    const BITS: u32 = N;
+impl<const N: Bits> NumBits for ConstBits<N> {
+    const BITS: u32 = {
+        const_assert!(N as u32 as Bits == N, "`BITS` is too large");
+        N as _
+    };
 }
 
 impl<T, B: NumBits> PtrImpl<T, B> {
@@ -226,15 +230,32 @@ macro_rules! impl_tagged_ptr_common {
 
 pub mod implied;
 
-pub struct TaggedPtr<T, const BITS: Bits>(PtrImpl<T, ConstBits<BITS>>);
+with_bits_doc! {
+    /// A tagged pointer: a space-efficient representation of a pointer and
+    /// integer tag.
+    ///
+    /// This type stores a pointer and an integer tag without taking up more
+    /// space than a normal pointer (unless the fallback implementation is used;
+    /// see the [crate documentation](crate#assumptions)).
+    ///
+    /// The tagged pointer conceptually holds a [`NonNull<T>`] and a certain
+    /// number of bits of an integer tag.
+    #[repr(transparent)]
+    pub struct TaggedPtr<T, const BITS: Bits>(PtrImpl<T, ConstBits<BITS>>);
+}
 
 impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// The number of tag bits that this tagged pointer can store.
-    pub const BITS: u32 = BITS;
+    pub const BITS: u32 = BITS as _;
 
     /// The maximum tag (inclusive) that this tagged pointer can store. Equal
     /// to `(1 << BITS) - 1` (i.e., one less than 2 to the power of `BITS`).
-    pub const MAX_TAG: usize = PtrImpl::<T, ConstBits<BITS>>::MASK;
+    pub const MAX_TAG: usize = Self::max_tag();
+
+    // Separate function so Rustdoc doesn't show the expression
+    const fn max_tag() -> usize {
+        PtrImpl::<T, ConstBits<BITS>>::MASK
+    }
 
     /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
     /// stored.
@@ -244,18 +265,25 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// by [`Self::get`] and [`Self::ptr`] may not be equivalent to `ptr`---it
     /// may be unsound to use them in ways that are sound for `ptr`.
     ///
-    /// # Panics
-    ///
-    /// This function may panic if `ptr` is not aligned to at least
-    /// 2<sup>`BITS`</sup> (i.e.,
-    /// <code>[mem::align_of]::\<T>().[trailing_zeros]()</code> must be greater
-    /// than or equal to `BITS`). It is recommended that `ptr` be properly
-    /// aligned for `T`, which automatically fulfills this requirement.
-    ///
-    /// [trailing_zeros]: usize::trailing_zeros
-    ///
     /// [^1]: It is permissible for only the first 2<sup>`BITS`</sup> bytes of
     /// `ptr` to be dereferenceable.
+    ///
+    /// # Panics
+    ///
+    /// `BITS` cannot be larger than
+    /// <code>[align_of]::\<T>().[trailing_zeros]\()</code> (because alignment
+    /// is always a power of 2, this is the base-2 logarithm of the alignment
+    /// of `T`). This ensures a properly aligned pointer to `T` can always
+    /// store the requested number of tag bits. If `BITS` is too large, panics
+    /// or compilation errors will occur.
+    ///
+    /// [align_of]: mem::align_of
+    /// [trailing_zeros]: usize::trailing_zeros
+    ///
+    /// `ptr` must be aligned to at least 2<sup>`BITS`</sup>
+    /// (i.e., `1 << BITS`) or panics may occur. It is recommended that `ptr`
+    /// be properly aligned for `T`, which automatically fulfills this
+    /// requirement due to the restriction on `BITS` above.
     pub fn new(ptr: NonNull<T>, tag: usize) -> Self {
         Self(PtrImpl::new(ptr, tag))
     }
@@ -266,10 +294,18 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     ///
     /// # Safety
     ///
-    /// * `ptr` must be aligned to at least 2<sup>`BITS`</sup> (i.e.,
-    ///   <code>[mem::align_of]::\<T>().[trailing_zeros]()</code> must be
-    ///   greater than or equal to `BITS`).
+    /// * `ptr` must be aligned to at least 2<sup>`BITS`</sup>
+    ///   (i.e., `1 << BITS`).
     /// * `tag` cannot be greater than [`Self::MAX_TAG`].
+    ///
+    /// [align_of]: mem::align_of
+    /// [trailing_zeros]: usize::trailing_zeros
+    ///
+    /// # Panics
+    ///
+    /// As with [`Self::new`], `BITS` cannot be larger than the base-2
+    /// logarithm of the alignment of `T`, or panics or compilation errors will
+    /// occur.
     pub unsafe fn new_unchecked(ptr: NonNull<T>, tag: usize) -> Self {
         // SAFETY: Ensured by caller.
         Self(unsafe { PtrImpl::new_unchecked(ptr, tag) })

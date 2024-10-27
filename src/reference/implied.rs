@@ -27,27 +27,20 @@ macro_rules! impl_implied_tagged_ref_common {
             pub const BITS: u32 = TaggedPtr::<T>::BITS;
 
             /// The maximum tag (inclusive) that this tagged reference can
-            /// store. Equal to <code>[mem::align_of]::\<T>() - 1</code>.
+            /// store. Equal to <code>[align_of]::\<T>() - 1</code>.
             ///
-            /// [mem::align_of]: core::mem::align_of
+            /// [align_of]: core::mem::align_of
             pub const MAX_TAG: usize = TaggedPtr::<T>::MAX_TAG;
         }
     };
 }
 
-/// A tagged immutable reference: a space-efficient representation of a
-/// reference and integer tag.
+/// A tagged reference with the maximum tag size for the given type.
 ///
-/// This type stores a shared reference and an integer tag without taking up
-/// more space than a normal reference (unless the fallback implementation is
-/// used; see the [crate documentation](crate#assumptions)).
-///
-/// The tagged reference conceptually holds a `&'a T` and a certain number of
-/// bits of an integer tag.
-///
-/// The number of bits that can be stored in the tag is determined as
-/// `mem::align_of::<T>().trailing_zeros()`, any higher bits in the tag will
-/// be masked away. See [`Self::new`] for more details.
+/// This type behaves like [`crate::TaggedRef`] but doesn't have a `BITS`
+/// parameter that determines how many tag bits to store. Instead, this type
+/// uses the largest possible tag size for a reference to `T`; see
+/// [`Self::BITS`] for the exact calculation.
 #[repr(transparent)]
 pub struct TaggedRef<'a, T>(TaggedPtr<T>, PhantomData<&'a T>);
 
@@ -82,6 +75,12 @@ impl_tagged_ref_common!(
 #[repr(transparent)]
 pub struct TaggedMutRef<'a, T>(TaggedPtr<T>, PhantomData<&'a mut T>);
 
+/// Mutable version of [`TaggedRef`].
+///
+/// This type behaves like [`crate::TaggedMutRef`] but doesn't have a `BITS`
+/// parameter that determines how many tag bits to store. Instead, this type
+/// uses the largest possible tag size for a reference to `T`; see
+/// [`Self::BITS`] for the exact calculation.
 impl<'a, T> TaggedMutRef<'a, T> {
     /// Creates a new tagged mutable reference. Only the lower [`Self::BITS`]
     /// bits of `tag` are stored.

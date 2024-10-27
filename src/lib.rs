@@ -130,13 +130,42 @@ macro_rules! const_assert {
     }};
 }
 
+/// Documentation for the const `BITS` parameter.
+macro_rules! with_bits_doc {
+    ($(#[$attr:meta])* pub $($tt:tt)+) => {
+        $(#[$attr])*
+        ///
+        /// `BITS` specifies how many bits are used for the tag. The alignment
+        /// of `T` must be large enough to store this many bits: if `BITS` is
+        /// larger than the base-2 logarithm of the alignment of `T`[^bits],
+        /// panics or compilation errors will occur.
+        ///
+        /// [^bits]: Equal to
+        // Workaround for issues with links to Rust items in footnotes
+        #[doc = "<code>\
+            [align_of][core::mem::align_of]::\\<T>().\
+            [ilog2][usize::ilog2]\\()\
+            </code>,"]
+        /// or, because alignment is always a power of 2,
+        #[doc = "<code>\
+            [align_of][core::mem::align_of]::\\<T>().\
+            [trailing_zeros][usize::trailing_zeros]\\()\
+            </code>."]
+        pub $($tt)*
+    };
+}
+
 mod ptr;
 mod reference;
 #[cfg(any(test, doctest))]
 mod tests;
 
-/// See, e.g., [`u32::BITS`].
-type Bits = u32;
+/// The type of the const `BITS` parameter. This could have been [`u32`], which
+/// would match the `BITS` constants in primitive types (e.g., [`u8::BITS`]),
+/// but [`usize`] is also suitable for storing any potential number of tag
+/// bits: because the tag itself is stored in a [`usize`], it cannot possibly
+/// consist of more than [`usize::MAX`] bits (or anywhere close to it).
+type Bits = usize;
 
 pub use ptr::TaggedPtr;
 pub use reference::{TaggedMutRef, TaggedRef};

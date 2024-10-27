@@ -25,12 +25,17 @@ macro_rules! impl_explicit_tagged_ref_common {
     ($name:ident $(,)?) => {
         impl<T, const BITS: Bits> $name<'_, T, BITS> {
             /// The number of tag bits that this tagged reference can store.
-            pub const BITS: u32 = BITS;
+            pub const BITS: u32 = BITS as _;
 
             /// The maximum tag (inclusive) that this tagged reference can
             /// store. Equal to `(1 << BITS) - 1` (i.e., one less than 2 to the
             /// power of `BITS`).
-            pub const MAX_TAG: usize = TaggedPtr::<T, BITS>::MAX_TAG;
+            pub const MAX_TAG: usize = Self::max_tag();
+
+            // Separate function show Rustdoc doesn't show the expression
+            const fn max_tag() -> usize {
+                TaggedPtr::<T, BITS>::MAX_TAG
+            }
         }
     };
 }
@@ -137,10 +142,18 @@ macro_rules! impl_tagged_ref_shared_mut_common {
     }; };
 }
 
-pub struct TaggedRef<'a, T, const BITS: Bits>(
-    TaggedPtr<T, BITS>,
-    PhantomData<&'a T>,
-);
+with_bits_doc! {
+    /// A tagged reference: a space-efficient representation of a reference and
+    /// integer tag.
+    ///
+    /// This type behaves like [`TaggedPtr`] but with a [reference] instead of
+    /// a raw pointer.
+    #[repr(transparent)]
+    pub struct TaggedRef<'a, T, const BITS: Bits>(
+        TaggedPtr<T, BITS>,
+        PhantomData<&'a T>,
+    );
+}
 
 impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     /// Creates a new tagged reference. Only the lower `BITS` bits of `tag` are
@@ -150,12 +163,61 @@ impl<'a, T, const BITS: Bits> TaggedRef<'a, T, BITS> {
     }
 }
 
-/// Common methods for [`TaggedRef`] and [`implicit::TaggedRef`].
-macro_rules! impl_tagged_ref_methods {
+/// Common code for [`TaggedRef`] and [`implied::TaggedRef`].
+macro_rules! impl_tagged_ref_common {
     (
+        [$($ty_params:tt)*],
         [$($ty_args:tt)*],
         $doctest_context:literal $(,)?
     ) => {
+        const _: () = {
+            use core::marker::PhantomData;
+
+            impl<'a, $($ty_params)*> TaggedRef<'a, $($ty_args)*> {
+                impl_tagged_ref_common!(
+                    impl methods,
+                    [$($ty_args)*],
+                    $doctest_context,
+                );
+            }
+        };
+
+        impl<$($ty_params)*> Clone for TaggedRef<'_, $($ty_args)*> {
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
+
+        impl<$($ty_params)*> Copy for TaggedRef<'_, $($ty_args)*> {}
+
+        // SAFETY: `TaggedRef` conceptually holds a `&T` and behaves as such
+        // with respect to aliasing and lifetimes. Accordingly, because
+        // `T: Sync` implies `&T: Sync`, it is safe for `TaggedRef` to
+        // implement `Sync` when the same condition of `T: Sync` holds.
+        unsafe impl<$($ty_params)*> Sync for TaggedRef<'_, $($ty_args)*>
+        where
+            T: Sync,
+        {
+        }
+
+        // SAFETY: `TaggedRef` conceptually holds a `&T` and behaves as such
+        // with respect to aliasing and lifetimes. Accordingly, because
+        // `T: Sync` implies `&T: Send`, it is safe for `TaggedRef` to
+        // implement `Send` when the same condition of `T: Sync` holds.
+        unsafe impl<$($ty_params)*> Send for TaggedRef<'_, $($ty_args)*>
+        where
+            T: Sync,
+        {
+        }
+
+        impl_tagged_ref_shared_mut_common!(
+            TaggedRef,
+            [$($ty_params)*],
+            [$($ty_args)*],
+        );
+    };
+
+    (impl methods, [$($ty_args:tt)*], $doctest_context:literal $(,)?) => {
         // `Self::new` is defined separately for each `TaggedRef` type in order
         // to customize the docstring. This function contains the shared
         // implementation of the function body and is called by `Self::new`.
@@ -176,7 +238,7 @@ macro_rules! impl_tagged_ref_methods {
             // SAFETY: References are necessarily aligned and dereferenceable.
             // The validity of `tag` is ensured by the caller.
             let tp = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
-            Self(tp, Default::default())
+            Self(tp, PhantomData)
         }
 
         /// Gets the reference and tag stored by the tagged reference.
@@ -200,7 +262,7 @@ macro_rules! impl_tagged_ref_methods {
         /// This method is equivalent to:
         ///
         /// ```
-        /// #[doc = $doctest_context]
+        #[doc = $doctest_context]
         /// # trait Ext<'a, T> { fn f(&mut self, reference: &'a T); }
         /// # impl<'a, T> Ext<'a, T> for TaggedRef<'a, T> {
         /// # fn f(&mut self, reference: &'a T) {
@@ -225,7 +287,7 @@ macro_rules! impl_tagged_ref_methods {
         /// This method is equivalent to:
         ///
         /// ```
-        /// #[doc = $doctest_context]
+        #[doc = $doctest_context]
         /// # trait Ext<'a, T> {
         /// #     fn f<'b>(&mut self, reference: &'b T) -> TaggedRef<'b, T>;
         /// # }
@@ -252,7 +314,7 @@ macro_rules! impl_tagged_ref_methods {
         /// This method is equivalent to:
         ///
         /// ```
-        /// #[doc = $doctest_context]
+        #[doc = $doctest_context]
         /// # trait Ext<'a, T> { fn f(&mut self, tag: usize); }
         /// # impl<'a, T> Ext<'a, T> for TaggedRef<'a, T> {
         /// # fn f(&mut self, tag: usize) {
@@ -265,33 +327,6 @@ macro_rules! impl_tagged_ref_methods {
     };
 }
 
-/// Common code for [`TaggedRef`] and [`implied::TaggedRef`].
-macro_rules! impl_tagged_ref_common {
-    (
-        [$($ty_params:tt)*],
-        [$($ty_args:tt)*],
-        $doctest_context:literal $(,)?
-    ) => {
-        impl<'a, $($ty_params)*> TaggedRef<'a, $($ty_args)*> {
-            impl_tagged_ref_methods!([$($ty_args)*], $doctest_context);
-        }
-
-        impl<$($ty_params)*> Clone for TaggedRef<'_, $($ty_args)*> {
-            fn clone(&self) -> Self {
-                *self
-            }
-        }
-
-        impl<$($ty_params)*> Copy for TaggedRef<'_, $($ty_args)*> {}
-
-        impl_tagged_ref_shared_mut_common!(
-            TaggedRef,
-            [$($ty_params)*],
-            [$($ty_args)*],
-        );
-    };
-}
-
 impl_explicit_tagged_ref_common!(TaggedRef);
 impl_tagged_ref_common!(
     [T, const BITS: Bits],
@@ -299,10 +334,17 @@ impl_tagged_ref_common!(
     "# type TaggedRef<'a, T> = tagged_pointer::TaggedRef<'a, T, 0>;",
 );
 
-pub struct TaggedMutRef<'a, T, const BITS: Bits>(
-    TaggedPtr<T, BITS>,
-    PhantomData<&'a mut T>,
-);
+with_bits_doc! {
+    /// Mutable version of [`TaggedRef`].
+    ///
+    /// Like [`TaggedRef`], this type stores a reference and an integer tag,
+    /// but the reference in this type is mutable.
+    #[repr(transparent)]
+    pub struct TaggedMutRef<'a, T, const BITS: Bits>(
+        TaggedPtr<T, BITS>,
+        PhantomData<&'a mut T>,
+    );
+}
 
 impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     /// Creates a new tagged mutable reference. Only the lower `BITS` bits of
@@ -312,12 +354,60 @@ impl<'a, T, const BITS: Bits> TaggedMutRef<'a, T, BITS> {
     }
 }
 
-/// Common methods for [`TaggedMutRef`] and [`implicit::TaggedMutRef`].
-macro_rules! impl_tagged_mut_ref_methods {
+/// Common code for [`TaggedMutRef`] and [`implicit::TaggedMutRef`].
+macro_rules! impl_tagged_mut_ref_common {
     (
+        [$($ty_params:tt)*],
         [$($ty_args:tt)*],
         $doctest_context:literal $(,)?
     ) => {
+        const _: () = {
+            use core::marker::PhantomData;
+            use core::ptr;
+
+            impl<'a, $($ty_params)*> TaggedMutRef<'a, $($ty_args)*> {
+                impl_tagged_mut_ref_common!(
+                    impl methods,
+                    [$($ty_args)*],
+                    $doctest_context,
+                );
+            }
+        };
+
+        impl<$($ty_params)*> AsMut<T> for TaggedMutRef<'_, $($ty_args)*> {
+            fn as_mut(&mut self) -> &mut T {
+                self.get_mut_ref()
+            }
+        }
+
+        // SAFETY: `TaggedMutRef` conceptually holds a `&mut T` and behaves as
+        // such with respect to aliasing and lifetimes. Accordingly, because
+        // `T: Sync` implies `&mut T: Sync`, it is safe for `TaggedMutRef` to
+        // implement `Sync` when the same condition of `T: Sync` holds.
+        unsafe impl<$($ty_params)*> Sync for TaggedMutRef<'_, $($ty_args)*>
+        where
+            T: Sync,
+        {
+        }
+
+        // SAFETY: `TaggedMutRef` conceptually holds a `&mut T` and behaves as
+        // such with respect to aliasing and lifetimes. Accordingly, because
+        // `T: Send` implies `&mut T: Send`, it is safe for `TaggedRef` to
+        // implement `Send` when the same condition of `T: Send` holds.
+        unsafe impl<$($ty_params)*> Send for TaggedMutRef<'_, $($ty_args)*>
+        where
+            T: Send,
+        {
+        }
+
+        impl_tagged_ref_shared_mut_common!(
+            TaggedMutRef,
+            [$($ty_params)*],
+            [$($ty_args)*],
+        );
+    };
+
+    (impl methods, [$($ty_args:tt)*], $doctest_context:literal $(,)?) => {
         // `Self::new` is defined separately for each `TaggedMutRef` type in
         // order to customize the docstring. This function contains the shared
         // implementation of the function body and is called by `Self::new`.
@@ -338,7 +428,7 @@ macro_rules! impl_tagged_mut_ref_methods {
             // SAFETY: References are necessarily aligned and dereferenceable.
             // The validity of `tag` is ensured by the caller.
             let tp = unsafe { TaggedPtr::new_unchecked(ptr, tag) };
-            Self(tp, Default::default())
+            Self(tp, PhantomData)
         }
 
         /// Creates an immutable [`TaggedRef`] with the same reference and tag.
@@ -351,7 +441,7 @@ macro_rules! impl_tagged_mut_ref_methods {
             // outlive `'a` (its lifetime is that of `self`) , and the data
             // can't be mutated while the `TaggedRef` is active, since this
             // method borrows the `TaggedMutRef` immutably.
-            TaggedRef(self.0, Default::default())
+            TaggedRef(self.0, PhantomData)
         }
 
         /// Converts the tagged reference into an immutable [`TaggedRef`].
@@ -362,7 +452,7 @@ macro_rules! impl_tagged_mut_ref_methods {
             // The `TaggedMutRef` is consumed, preventing future mutable
             // access, so it's safe to return a `TaggedRef` with the same
             // lifetime.
-            TaggedRef(self.0, Default::default())
+            TaggedRef(self.0, PhantomData)
         }
 
         /// Returns an immutable reborrow of the reference stored by the tagged
@@ -423,6 +513,7 @@ macro_rules! impl_tagged_mut_ref_methods {
         /// This method is equivalent to:
         ///
         /// ```
+        #[doc = $doctest_context]
         /// # trait Ext<'a, T> { fn f(&mut self, reference: &'a mut T); }
         /// # impl<'a, T> Ext<'a, T> for TaggedMutRef<'a, T> {
         /// # fn f(&mut self, reference: &'a mut T) {
@@ -447,6 +538,7 @@ macro_rules! impl_tagged_mut_ref_methods {
         /// This method is equivalent to:
         ///
         /// ```
+        #[doc = $doctest_context]
         /// # trait Ext<T> {
         /// #     fn f<'b>(&mut self, r: &'b mut T) -> TaggedMutRef<'b, T>;
         /// # }
@@ -476,6 +568,7 @@ macro_rules! impl_tagged_mut_ref_methods {
         /// ownership of the tagged reference:
         ///
         /// ```compile_fail
+        #[doc = $doctest_context]
         /// # trait Ext<T> { fn f(&mut self, tag: usize); }
         /// # impl<T> Ext<T> for TaggedMutRef<'_, T> {
         /// # fn f(&mut self, tag: usize) {
@@ -488,12 +581,12 @@ macro_rules! impl_tagged_mut_ref_methods {
             // it, but because `Self` is not `Copy`, we must ensure it isn't
             // accessed until another value is written to it with `ptr::write`.
             // (Conceptually, we're temporarily taking ownership of `*self`.)
-            let this = unsafe { core::ptr::read(self) };
+            let this = unsafe { ptr::read(self) };
             let this = Self::new(this.into_ref(), tag);
             // SAFETY: `self` is a mutable reference, so it is necessarily
             // aligned and valid for writes.
             unsafe {
-                core::ptr::write(self, this);
+                ptr::write(self, this);
             }
         }
 
@@ -503,6 +596,7 @@ macro_rules! impl_tagged_mut_ref_methods {
         /// This method is equivalent to:
         ///
         /// ```
+        #[doc = $doctest_context]
         /// # trait Ext<T> { fn f(&mut self) -> TaggedMutRef<'_, T>; }
         /// # impl<T> Ext<T> for TaggedMutRef<'_, T> {
         /// # fn f(&mut self) -> TaggedMutRef<'_, T> {
@@ -514,31 +608,6 @@ macro_rules! impl_tagged_mut_ref_methods {
             let (reference, tag) = self.get_mut();
             TaggedMutRef::new(reference, tag)
         }
-    };
-}
-
-/// Common code for [`TaggedMutRef`] and [`implicit::TaggedMutRef`].
-macro_rules! impl_tagged_mut_ref_common {
-    (
-        [$($ty_params:tt)*],
-        [$($ty_args:tt)*],
-        $doctest_context:literal $(,)?
-    ) => {
-        impl<'a, $($ty_params)*> TaggedMutRef<'a, $($ty_args)*> {
-            impl_tagged_mut_ref_methods!([$($ty_args)*], $doctest_context);
-        }
-
-        impl<$($ty_params)*> AsMut<T> for TaggedMutRef<'_, $($ty_args)*> {
-            fn as_mut(&mut self) -> &mut T {
-                self.get_mut_ref()
-            }
-        }
-
-        impl_tagged_ref_shared_mut_common!(
-            TaggedMutRef,
-            [$($ty_params)*],
-            [$($ty_args)*],
-        );
     };
 }
 
