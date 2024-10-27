@@ -16,3 +16,7 @@ fallback = []
 
 # Optional, for tests only. Uncomment to enable.
 #dev-dependencies.compiletest_rs.version = "0.10"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(has_unsafe_op_in_unsafe_fn)", "cfg(has_const_assert)"]
