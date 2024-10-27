@@ -21,7 +21,7 @@ use core::mem;
 use core::ptr::NonNull;
 
 #[cfg(not(doctest))]
-#[cfg(feature = "compiletest_rs")]
+#[cfg(compiletest_rs)]
 mod compiletest_rs;
 
 #[repr(align(2))]

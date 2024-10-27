@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#![cfg_attr(not(all(test, feature = "compiletest_rs")), no_std)]
+#![cfg_attr(not(all(test, compiletest_rs)), no_std)]
 #![cfg_attr(has_unsafe_op_in_unsafe_fn, deny(unsafe_op_in_unsafe_fn))]
 #![allow(clippy::default_trait_access)]
 #![allow(clippy::module_name_repetitions)]

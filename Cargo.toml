@@ -14,9 +14,14 @@ categories = ["data-structures", "no-std"]
 [features]
 fallback = []
 
-# Optional, for tests only. Uncomment to enable.
+# Optional, for tests only. Uncomment to enable, and run with
+# RUSTFLAGS="--cfg compiletest_rs".
 #dev-dependencies.compiletest_rs.version = "0.10"
 
 [lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ["cfg(has_unsafe_op_in_unsafe_fn)", "cfg(has_const_assert)"]
+check-cfg = [
+    "cfg(has_unsafe_op_in_unsafe_fn)",
+    "cfg(has_const_assert)",
+    "cfg(compiletest_rs)",
+]
