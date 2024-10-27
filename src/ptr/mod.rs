@@ -205,8 +205,8 @@ macro_rules! impl_tagged_ptr_common {
             ///
             /// ```
             #[doc = $doctest_context]
-            /// # trait Ext<T> { fn f(&mut self, tag: usize); }
-            /// # impl<T> Ext<T> for TaggedPtr<T> {
+            /// # trait Ext { fn f(&mut self, tag: usize); }
+            /// # impl<T> Ext for TaggedPtr<T> {
             /// # fn f(&mut self, tag: usize) {
             /// *self = Self::new(self.ptr(), tag);
             /// # }}
@@ -220,7 +220,7 @@ macro_rules! impl_tagged_ptr_common {
 
         impl<$($ty_params)*> Clone for TaggedPtr<$($ty_args)*> {
             fn clone(&self) -> Self {
-                Self(self.0)
+                *self
             }
         }
 

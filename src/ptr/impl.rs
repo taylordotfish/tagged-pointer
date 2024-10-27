@@ -25,6 +25,7 @@ use core::ptr::NonNull;
 #[repr(transparent)]
 pub struct PtrImpl<T, B = PhantomData<T>>(
     NonNull<u8>,
+    #[allow(clippy::type_complexity)]
     PhantomData<(NonNull<T>, fn() -> B)>,
 );
 

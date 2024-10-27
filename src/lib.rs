@@ -18,7 +18,6 @@
 
 #![cfg_attr(not(all(test, feature = "compiletest_rs")), no_std)]
 #![cfg_attr(has_unsafe_op_in_unsafe_fn, deny(unsafe_op_in_unsafe_fn))]
-#![warn(clippy::pedantic)]
 #![allow(clippy::default_trait_access)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate)]
@@ -80,14 +79,18 @@
 //! strict provenance.
 //!
 //! Previously, this crate relied on assumptions about the behavior of
-//! [`pointer::align_offset`] in certain circumstances. These assumptions were
-//! effectively always true, but were not strictly guaranteed, so a fallback
-//! implementation was provided with the crate feature `fallback`, which would
-//! avoid relying on this assumption at the cost of space efficiency.
+//! [`pointer::align_offset`][align_offset] in certain circumstances. These
+//! assumptions were effectively always true, but were not strictly guaranteed,
+//! so a fallback implementation was provided with the crate feature
+//! `fallback`, which would avoid relying on this assumption at the cost of
+//! space efficiency.
 //!
 //! However, as of Rust 1.78, this assumption is no longer necessary:
-//! [`pointer::align_offset`] is [guaranteed to behave as required][121201].
+//! [`align_offset`][align_offset] is [guaranteed to behave as
+//! required][121201].
 //!
+//! [align_offset]:
+//!   https://doc.rust-lang.org/std/primitive.pointer.html#method.align_offset
 //! [121201]: https://github.com/rust-lang/rust/pull/121201/
 
 #[cfg(has_const_assert)]
@@ -122,13 +125,8 @@ macro_rules! with_bits_doc {
         /// larger than the base-2 logarithm of the alignment of `T`[^bits],
         /// panics or compilation errors will occur.
         ///
-        /// [^bits]: Equal to
+        /// [^bits]: Because alignment is always a power of 2, this is equal to
         // Workaround for issues with links to Rust items in footnotes
-        #[doc = "<code>\
-            [align_of][core::mem::align_of]::\\<T>().\
-            [ilog2][usize::ilog2]\\()\
-            </code>,"]
-        /// or, because alignment is always a power of 2,
         #[doc = "<code>\
             [align_of][core::mem::align_of]::\\<T>().\
             [trailing_zeros][usize::trailing_zeros]\\()\

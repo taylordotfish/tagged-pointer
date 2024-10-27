@@ -30,14 +30,13 @@ macro_rules! impl_explicit_tagged_ref_common {
             /// The maximum tag (inclusive) that this tagged reference can
             /// store. Equal to `(1 << BITS) - 1` (i.e., one less than 2 to the
             /// power of `BITS`).
-            pub const MAX_TAG: usize = Self::max_tag();
-
-            // Separate function show Rustdoc doesn't show the expression
-            const fn max_tag() -> usize {
-                TaggedPtr::<T, BITS>::MAX_TAG
-            }
+            pub const MAX_TAG: usize = max_tag::<T, BITS>();
         }
     };
+}
+
+const fn max_tag<T, const BITS: Bits>() -> usize {
+    TaggedPtr::<T, BITS>::MAX_TAG
 }
 
 /// Common code for [`TaggedRef`] and [`TaggedMutRef`], as well as the versions
@@ -249,7 +248,7 @@ macro_rules! impl_tagged_ref_common {
             // SAFETY: `ptr` came from the valid reference passed to
             // `Self::new`. The `PhantomData` in `self.1` has the appropriate
             // lifetime to ensure the reference is still valid.
-            (unsafe { ptr.as_ref() }, tag)
+            (unsafe { &*ptr.as_ptr() }, tag)
         }
 
         /// Gets the reference stored by the tagged reference, without the tag.
@@ -290,18 +289,16 @@ macro_rules! impl_tagged_ref_common {
         ///
         /// ```
         #[doc = $doctest_context]
-        /// # trait Ext<'a, T> {
-        /// #     fn f<'b>(&mut self, reference: &'b T) -> TaggedRef<'b, T>;
-        /// # }
-        /// # impl<'a, T> Ext<'a, T> for TaggedRef<'a, T> {
-        /// # fn f<'b>(&mut self, reference: &'b T) -> TaggedRef<'b, T> {
+        /// # trait Ext<T> { fn f(self, reference: &T) -> TaggedRef<'_, T>; }
+        /// # impl<T> Ext<T> for TaggedRef<'_, T> {
+        /// # fn f(self, reference: &T) -> TaggedRef<'_, T> {
         /// TaggedRef::new(reference, self.tag())
         /// # }}
         /// ```
-        pub fn with_ref<'b>(
+        pub fn with_ref(
             self,
-            reference: &'b T,
-        ) -> TaggedRef<'b, $($ty_args)*> {
+            reference: &T,
+        ) -> TaggedRef<'_, $($ty_args)*> {
             TaggedRef::new(reference, self.tag())
         }
 
@@ -317,8 +314,8 @@ macro_rules! impl_tagged_ref_common {
         ///
         /// ```
         #[doc = $doctest_context]
-        /// # trait Ext<'a, T> { fn f(&mut self, tag: usize); }
-        /// # impl<'a, T> Ext<'a, T> for TaggedRef<'a, T> {
+        /// # trait Ext { fn f(&mut self, tag: usize); }
+        /// # impl<T> Ext for TaggedRef<'_, T> {
         /// # fn f(&mut self, tag: usize) {
         /// *self = Self::new(self.get_ref(), tag);
         /// # }}
@@ -470,24 +467,24 @@ macro_rules! impl_tagged_mut_ref_common {
         /// Returns a mutable reborrow of the reference stored by the tagged
         /// reference, along with a copy of the tag.
         pub fn get_mut(&mut self) -> (&mut T, usize) {
-            let (mut ptr, tag) = self.0.get();
+            let (ptr, tag) = self.0.get();
             // SAFETY: `ptr` came from the valid reference passed to
             // `Self::new`. The `PhantomData` in `self.1` has the appropriate
             // lifetime to ensure the reference is still valid, and the return
             // type of this method has the correct lifetime to ensure the data
             // cannot be aliased.
-            (unsafe { ptr.as_mut() }, tag)
+            (unsafe { &mut *ptr.as_ptr() }, tag)
         }
 
         /// Deconstructs the tagged reference into its constituent parts: the
         /// reference (with the original lifetime `'a`) and the tag.
         pub fn into_inner(self) -> (&'a mut T, usize) {
-            let (mut ptr, tag) = self.0.get();
+            let (ptr, tag) = self.0.get();
             // SAFETY: `ptr` came from the valid reference passed to
             // `Self::new`. The `PhantomData` in `self.1` has the appropriate
             // lifetime to ensure the reference is still valid, and this method
             // takes ownership of `self` to ensure the data cannot be aliased.
-            (unsafe { ptr.as_mut() }, tag)
+            (unsafe { &mut *ptr.as_ptr() }, tag)
         }
 
         /// Returns an immutable reborrow of the reference stored by the tagged
@@ -573,8 +570,8 @@ macro_rules! impl_tagged_mut_ref_common {
         ///
         /// ```compile_fail
         #[doc = $doctest_context]
-        /// # trait Ext<T> { fn f(&mut self, tag: usize); }
-        /// # impl<T> Ext<T> for TaggedMutRef<'_, T> {
+        /// # trait Ext { fn f(&mut self, tag: usize); }
+        /// # impl<T> Ext for TaggedMutRef<'_, T> {
         /// # fn f(&mut self, tag: usize) {
         /// // Error: can't call `into_ref` on `&mut Self`.
         /// *self = Self::new(self.into_ref(), tag);
