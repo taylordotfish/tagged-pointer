@@ -67,6 +67,7 @@ fn not_entirely_dereferenceable() {
 }
 
 macro_rules! compile_fail_doctest {
+    #[rustfmt::skip]
     (
         $name:ident,
         pass = $pass:literal,

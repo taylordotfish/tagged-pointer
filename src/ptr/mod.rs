@@ -43,6 +43,12 @@ impl<const N: Bits> NumBits for ConstBits<N> {
     };
 }
 
+macro_rules! check_bits {
+    ($tz_bits:expr, $n:literal, $msg:literal $(,)?) => {
+        const_assert!($tz_bits.0 != $n || $tz_bits.1 <= $n, $msg);
+    };
+}
+
 impl<T, B: NumBits> PtrImpl<T, B> {
     /// The number of tag bits that can be stored.
     pub const BITS: u32 = B::BITS;
@@ -62,42 +68,14 @@ impl<T, B: NumBits> PtrImpl<T, B> {
         let align = mem::align_of::<T>();
         let tz = mem::align_of::<T>().trailing_zeros();
         // Ensure `BITS` isn't too large.
-        const_assert!(
-            tz != 0 || bits == 0,
-            "`BITS` must be 0 (alignment of T is 1)",
-        );
-        const_assert!(
-            tz != 1 || bits <= 1,
-            "`BITS` must be <= 1 (alignment of T is 2)",
-        );
-        const_assert!(
-            tz != 2 || bits <= 2,
-            "`BITS` must be <= 2 (alignment of T is 4)",
-        );
-        const_assert!(
-            tz != 3 || bits <= 3,
-            "`BITS` must be <= 3 (alignment of T is 8)",
-        );
-        const_assert!(
-            tz != 4 || bits <= 4,
-            "`BITS` must be <= 4 (alignment of T is 16)",
-        );
-        const_assert!(
-            tz != 5 || bits <= 5,
-            "`BITS` must be <= 5 (alignment of T is 32)",
-        );
-        const_assert!(
-            tz != 6 || bits <= 6,
-            "`BITS` must be <= 6 (alignment of T is 64)",
-        );
-        const_assert!(
-            tz != 7 || bits <= 7,
-            "`BITS` must be <= 7 (alignment of T is 128)",
-        );
-        const_assert!(
-            tz != 8 || bits <= 8,
-            "`BITS` must be <= 8 (alignment of T is 256)",
-        );
+        let c = (tz, bits);
+        check_bits!(c, 0, "`BITS` must be 0 (alignment of T is 1)");
+        check_bits!(c, 1, "`BITS` must be <= 1 (alignment of T is 2)");
+        check_bits!(c, 2, "`BITS` must be <= 2 (alignment of T is 4)");
+        check_bits!(c, 3, "`BITS` must be <= 3 (alignment of T is 8)");
+        check_bits!(c, 4, "`BITS` must be <= 4 (alignment of T is 16)");
+        check_bits!(c, 5, "`BITS` must be <= 5 (alignment of T is 32)");
+        check_bits!(c, 6, "`BITS` must be <= 6 (alignment of T is 64)");
         const_assert!(
             bits <= tz,
             "`BITS` cannot exceed align_of::<T>().trailing_zeros()",
