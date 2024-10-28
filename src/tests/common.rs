@@ -178,3 +178,27 @@ fn check_option_size() {
         mem::size_of::<Option<TaggedPtr<u64, 3>>>(),
     );
 }
+
+#[test]
+fn past_the_end() {
+    let mut x = Align8(123);
+    let p = (&mut x as *mut Align8).wrapping_add(1);
+    let tp = TaggedPtr::<_, 3>::new(NonNull::new(p).unwrap(), 0b101);
+
+    let (p2, t) = tp.get();
+    assert_eq!(t, 0b101);
+
+    let p2 = p2.as_ptr().wrapping_sub(1);
+    unsafe { &mut *p2 }.0 = 456;
+    assert_eq!(x.0, 456);
+}
+
+#[test]
+fn dangling() {
+    let p = NonNull::<Align8>::dangling();
+    let tp = TaggedPtr::<_, 3>::new(p, 0b101);
+
+    let (p2, t) = tp.get();
+    assert_eq!(p2, p);
+    assert_eq!(t, 0b101);
+}

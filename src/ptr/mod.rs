@@ -270,14 +270,6 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
     /// Creates a new tagged pointer. Only the lower `BITS` bits of `tag` are
     /// stored.
     ///
-    /// `ptr` should be "dereferenceable" in the sense defined by
-    /// [`core::ptr`](core::ptr#safety).[^1] Otherwise, the pointers returned
-    /// by [`Self::get`] and [`Self::ptr`] may not be equivalent to `ptr`---it
-    /// may be unsound to use them in ways that are sound for `ptr`.
-    ///
-    /// [^1]: It is permissible for only the first 2<sup>`BITS`</sup> bytes of
-    /// `ptr` to be dereferenceable.
-    ///
     /// # Panics
     ///
     /// `BITS` cannot be larger than
@@ -298,9 +290,7 @@ impl<T, const BITS: Bits> TaggedPtr<T, BITS> {
         Self(PtrImpl::new(ptr, tag))
     }
 
-    /// Equivalent to [`Self::new`] but without some runtime checks. The
-    /// comments about `ptr` being "dereferenceable" also apply to this
-    /// function.
+    /// Equivalent to [`Self::new`] but without some runtime checks.
     ///
     /// # Safety
     ///
