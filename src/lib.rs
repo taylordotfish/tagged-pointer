@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#![cfg_attr(not(all(test, compiletest_rs)), no_std)]
+#![no_std]
 #![cfg_attr(has_unsafe_op_in_unsafe_fn, deny(unsafe_op_in_unsafe_fn))]
 #![allow(clippy::default_trait_access)]
 #![allow(clippy::module_name_repetitions)]
@@ -76,7 +76,9 @@
 //! architectures that do not allow reusing the lower bits of aligned pointers
 //! in this manner, and even if none are currently supported by Rust, they
 //! could be added in the future. This crate’s approach also works better with
-//! strict provenance.
+//! [strict provenance].
+//!
+//! [strict provenance]: https://github.com/rust-lang/rust/issues/95228
 //!
 //! Previously, this crate relied on assumptions about the behavior of
 //! [`pointer::align_offset`][align_offset] in certain circumstances. These

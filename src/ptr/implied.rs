@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-use super::ptr_impl::PtrImpl;
+use super::PtrImpl;
 use core::ptr::NonNull;
 
 /// A tagged pointer with the maximum tag size for the given type.
@@ -33,20 +33,30 @@ use core::ptr::NonNull;
 pub struct TaggedPtr<T>(PtrImpl<T>);
 
 impl<T> TaggedPtr<T> {
-    /// The number of bits that this tagged pointer can store. Equal to
+    /// The number of tag bits that this tagged pointer can store. Equal to
     /// <code>[align_of]::\<T>().[trailing_zeros]\()</code> (because alignment
     /// is always a power of 2, this is the base-2 logarithm of the alignment
     /// of `T`).
     ///
     /// [align_of]: core::mem::align_of
     /// [trailing_zeros]: usize::trailing_zeros
-    pub const BITS: u32 = PtrImpl::<T>::BITS;
+    pub const BITS: u32 = Self::bits();
+
+    // Separate function so Rustdoc doesn't show the expression
+    const fn bits() -> u32 {
+        PtrImpl::<T>::BITS
+    }
 
     /// The maximum tag (inclusive) that this tagged pointer can store. Equal
     /// to <code>[align_of]::\<T>() - 1</code>.
     ///
     /// [align_of]: core::mem::align_of
-    pub const MAX_TAG: usize = PtrImpl::<T>::MASK;
+    pub const MAX_TAG: usize = Self::max_tag();
+
+    // Separate function so Rustdoc doesn't show the expression
+    const fn max_tag() -> usize {
+        PtrImpl::<T>::MASK
+    }
 
     /// Creates a new tagged pointer. Only the lower [`Self::BITS`] bits of
     /// `tag` are stored.

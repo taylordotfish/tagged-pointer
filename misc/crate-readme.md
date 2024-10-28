@@ -48,7 +48,9 @@ lower bits of that number can be used for tagging. There exist
 architectures that do not allow reusing the lower bits of aligned pointers
 in this manner, and even if none are currently supported by Rust, they
 could be added in the future. This crate’s approach also works better with
-strict provenance.
+[strict provenance].
+
+[strict provenance]: https://github.com/rust-lang/rust/issues/95228
 
 Previously, this crate relied on assumptions about the behavior of
 [`pointer::align_offset`][align_offset] in certain circumstances. These

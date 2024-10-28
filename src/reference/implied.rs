@@ -24,6 +24,12 @@ macro_rules! impl_implied_tagged_ref_common {
     ($name:ident $(,)?) => {
         impl<T> $name<'_, T> {
             /// The number of tag bits that this tagged reference can store.
+            /// Equal to <code>[align_of]::\<T>().[trailing_zeros]\()</code>
+            /// (because alignment is always a power of 2, this is the base-2
+            /// logarithm of the alignment of `T`).
+            ///
+            /// [align_of]: core::mem::align_of
+            /// [trailing_zeros]: usize::trailing_zeros
             pub const BITS: u32 = TaggedPtr::<T>::BITS;
 
             /// The maximum tag (inclusive) that this tagged reference can

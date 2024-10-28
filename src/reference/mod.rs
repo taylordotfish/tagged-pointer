@@ -61,7 +61,7 @@ macro_rules! impl_tagged_ref_shared_mut_common {
         where
             T: PartialEq,
         {
-            /// Returns <code>self.[get]() == other.[get]()</code>.
+            /// Returns <code>self.[get]\() == other.[get]\()</code>.
             ///
             /// [get]: Self::get
             fn eq(&self, other: &Self) -> bool {
@@ -73,7 +73,7 @@ macro_rules! impl_tagged_ref_shared_mut_common {
         where
             T: Ord,
         {
-            /// Returns <code>self.[get]().cmp(&other.[get]())</code>.
+            /// Returns <code>self.[get]\().cmp(&other.[get]\())</code>.
             ///
             /// [get]: Self::get
             fn cmp(&self, other: &Self) -> Ordering {
@@ -85,7 +85,8 @@ macro_rules! impl_tagged_ref_shared_mut_common {
         where
             T: PartialOrd,
         {
-            /// Returns <code>self.[get]().partial_cmp(&other.[get]())</code>.
+            /// Returns
+            /// <code>self.[get]\().partial_cmp(&other.[get]\())</code>.
             ///
             /// [get]: Self::get
             fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -504,7 +505,7 @@ macro_rules! impl_tagged_mut_ref_common {
         /// Gets the reference stored by the tagged reference with its original
         /// lifetime (`'a`), consuming the tagged reference in the process.
         ///
-        /// Equivalent to <code>[Self::into_inner]().0</code>.
+        /// Equivalent to <code>[Self::into_inner]\().0</code>.
         pub fn into_ref(self) -> &'a mut T {
             self.into_inner().0
         }
@@ -602,7 +603,7 @@ macro_rules! impl_tagged_mut_ref_common {
         /// # impl<T> Ext<T> for TaggedMutRef<'_, T> {
         /// # fn f(&mut self) -> TaggedMutRef<'_, T> {
         /// let (reference, tag) = self.get_mut();
-        /// TaggedMutRef::new(reference, tag);
+        /// TaggedMutRef::new(reference, tag)
         /// # }}
         /// ```
         pub fn reborrow(&mut self) -> TaggedMutRef<'_, $($ty_args)*> {

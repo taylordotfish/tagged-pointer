@@ -22,7 +22,7 @@ use core::hash::{Hash, Hasher};
 use core::ptr::NonNull;
 use core::marker::PhantomData;
 
-pub struct PtrImpl<T, B = PhantomData<T>> {
+pub(super) struct PtrImpl<T, B = PhantomData<T>> {
     ptr: NonNull<T>,
     tag: usize,
 }

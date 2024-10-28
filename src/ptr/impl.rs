@@ -29,7 +29,7 @@ this should not happen; please file an issue at
 https://github.com/taylordotfish/tagged-pointer";
 
 #[repr(transparent)]
-pub struct PtrImpl<T, B = PhantomData<T>>(
+pub(super) struct PtrImpl<T, B = PhantomData<T>>(
     NonNull<u8>,
     #[allow(clippy::type_complexity)] PhantomData<(NonNull<T>, fn() -> B)>,
 );
