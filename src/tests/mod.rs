@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+#![allow(clippy::undocumented_unsafe_blocks)]
+
 use crate::{TaggedMutRef, TaggedPtr, TaggedRef};
 use core::ptr::NonNull;
 

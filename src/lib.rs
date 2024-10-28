@@ -18,9 +18,7 @@
 
 #![no_std]
 #![cfg_attr(has_unsafe_op_in_unsafe_fn, deny(unsafe_op_in_unsafe_fn))]
-#![allow(clippy::default_trait_access)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::must_use_candidate)]
+#![warn(clippy::undocumented_unsafe_blocks)]
 
 //! This crate provides an implementation of [tagged pointers]: a
 //! space-efficient representation of a pointer and integer tag. In particular,
