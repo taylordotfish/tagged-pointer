@@ -69,7 +69,7 @@ let tp = TaggedPtr::<MyU64, 3>::new(NonNull::from(&x), 0b11);
 [primitive-layout]:
  https://doc.rust-lang.org/reference/type-layout.html#primitive-data-layout
 [repr-align]:
- https://doc.rust-lang.org/reference/type-layout.html#the-alignment-modifiers"
+ https://doc.rust-lang.org/reference/type-layout.html#the-alignment-modifiers
 
 Assumptions
 -----------
@@ -100,4 +100,3 @@ However, as of Rust 1.78, this assumption is no longer necessary:
 
 [`TaggedPtr`]: https://docs.rs/tagged-pointer/0.2/tagged_pointer/struct.TaggedPtr.html
 [`Option<TaggedPtr>`]: https://doc.rust-lang.org/std/option/enum.Option.html
-[`u64`]: https://doc.rust-lang.org/std/primitive.u64.html
