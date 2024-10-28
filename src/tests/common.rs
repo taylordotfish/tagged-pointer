@@ -153,7 +153,7 @@ fn zst() {
 }
 
 #[test]
-#[cfg_attr(not(feature = "fallback"), should_panic)]
+#[should_panic]
 fn runtime_not_aligned_enough() {
     let ptr: *mut Align2 = &mut Align2(0);
     let ptr = unsafe { (ptr as *mut u8).add(1) };

@@ -66,8 +66,8 @@ fn not_entirely_dereferenceable() {
     assert_eq!(b.0, 1234);
 }
 
+#[rustfmt::skip]
 macro_rules! compile_fail_doctest {
-    #[rustfmt::skip]
     (
         $name:ident,
         pass = $pass:literal,
