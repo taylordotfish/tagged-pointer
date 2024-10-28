@@ -185,6 +185,14 @@ type Bits = usize;
 pub use ptr::TaggedPtr;
 pub use reference::{TaggedMutRef, TaggedRef};
 
+/// Alternate tagged pointer types without a `BITS` parameter.
+///
+/// The types in this module correspond to those in the [crate root][crate],
+/// but instead of taking a `BITS` parameter to determine how many tag bits
+/// are stored, they use the largest possible tag size for an aligned pointer
+/// to `T`.
+///
+/// See each type's documentation for more information.
 pub mod implied {
     pub use super::ptr::implied::*;
     pub use super::reference::implied::*;
