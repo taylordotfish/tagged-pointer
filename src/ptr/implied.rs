@@ -61,11 +61,6 @@ impl<T> TaggedPtr<T> {
     /// Creates a new tagged pointer. Only the lower [`Self::BITS`] bits of
     /// `tag` are stored.
     ///
-    /// `ptr` should be "dereferenceable" in the sense defined by
-    /// [`core::ptr`](core::ptr#safety). Otherwise, the pointers returned by
-    /// [`Self::get`] and [`Self::ptr`] may not be equivalent to `ptr`---it may
-    /// be unsound to use them in ways that are sound for `ptr`.
-    ///
     /// # Panics
     ///
     /// This function may panic if `ptr` is not properly aligned (i.e., aligned
@@ -74,11 +69,7 @@ impl<T> TaggedPtr<T> {
         Self(PtrImpl::new(ptr, tag))
     }
 
-    /// Creates a new tagged pointer.
-    ///
-    /// Equivalent to [`Self::new`] but without some runtime checks. The
-    /// comments about `ptr` being "dereferenceable" also apply to this
-    /// function.
+    /// Equivalent to [`Self::new`] but without some runtime checks.
     ///
     /// # Safety
     ///
