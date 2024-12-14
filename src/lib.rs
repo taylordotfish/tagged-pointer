@@ -82,7 +82,7 @@
 //! // This won't work on systems where `u64` has an alignment of 4!
 //! # if false {
 //! let x: u64 = 123;
-//! let tp = TaggedPtr::<u64, 3>::new(NonNull::from(&x), 0b11);
+//! let tp = TaggedPtr::<u64, 3>::new(NonNull::from(&x), 0b101);
 //! # }
 //!
 //! // Instead, do this:
@@ -90,7 +90,7 @@
 //! struct MyU64(pub u64);
 //!
 //! let x = MyU64(123);
-//! let tp = TaggedPtr::<MyU64, 3>::new(NonNull::from(&x), 0b11);
+//! let tp = TaggedPtr::<MyU64, 3>::new(NonNull::from(&x), 0b101);
 //! ```
 //!
 //! [primitive-layout]:
