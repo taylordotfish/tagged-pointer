@@ -18,7 +18,7 @@
 
 #![allow(clippy::undocumented_unsafe_blocks)]
 
-use core::ptr::NonNull;
+use std::ptr::NonNull;
 use tagged_pointer::{TaggedMutRef, TaggedPtr, TaggedRef};
 
 #[repr(align(2))]

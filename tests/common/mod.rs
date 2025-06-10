@@ -19,8 +19,8 @@
 use super::IS_IMPLIED;
 use super::{Align2, Align4, Align8};
 use super::{TaggedMutRef, TaggedPtr, TaggedRef};
-use core::mem;
-use core::ptr::NonNull;
+use std::mem;
+use std::ptr::NonNull;
 
 #[test]
 fn basic() {
