@@ -18,8 +18,8 @@
 
 #![allow(clippy::undocumented_unsafe_blocks)]
 
-use crate::{TaggedMutRef, TaggedPtr, TaggedRef};
 use core::ptr::NonNull;
+use tagged_pointer::{TaggedMutRef, TaggedPtr, TaggedRef};
 
 #[repr(align(2))]
 #[derive(Debug, Eq, PartialEq)]
@@ -39,7 +39,7 @@ mod common;
 #[path = "."]
 mod implied {
     use super::{Align2, Align4, Align8};
-    use crate::implied;
+    use tagged_pointer::implied;
     type TaggedPtr<T, const N: usize> = implied::TaggedPtr<T>;
     type TaggedRef<'a, T, const N: usize> = implied::TaggedRef<'a, T>;
     type TaggedMutRef<'a, T, const N: usize> = implied::TaggedMutRef<'a, T>;
@@ -66,65 +66,4 @@ fn not_entirely_dereferenceable() {
     assert_eq!(tp.tag(), 0b11);
     unsafe { tp.ptr().cast::<Align4>().as_mut() }.0 = 1234;
     assert_eq!(b.0, 1234);
-}
-
-#[rustfmt::skip]
-macro_rules! compile_fail_doctest {
-    (
-        $name:ident,
-        pass = $pass:literal,
-        fail = $fail:literal,
-        $code:literal $(,)?
-    ) => {
-        /// ```
-        #[doc = $pass]
-        #[doc = $code]
-        /// ```
-        ///
-        /// ```compile_fail
-        #[doc = $fail]
-        #[doc = $code]
-        /// ```
-        mod $name {}
-    };
-}
-
-mod type_not_aligned_enough {
-    compile_fail_doctest! {
-        test1,
-        pass = "const BITS: usize = 0;",
-        fail = "const BITS: usize = 1;",
-        r"use tagged_pointer::TaggedPtr;
-        TaggedPtr::<_, BITS>::new((&0_u8).into(), 0);",
-    }
-
-    compile_fail_doctest! {
-        test2,
-        pass = "const BITS: usize = 1;",
-        fail = "const BITS: usize = 2;",
-        r"use tagged_pointer::TaggedPtr;
-        #[repr(align(2))]
-        struct Align2(pub u16);
-        TaggedPtr::<_, BITS>::new((&Align2(0)).into(), 0);",
-    }
-
-    compile_fail_doctest! {
-        test3,
-        pass = "const BITS: usize = 2;",
-        fail = "const BITS: usize = 3;",
-        r"use tagged_pointer::TaggedPtr;
-        #[repr(align(4))]
-        struct Align4(pub u32);
-        TaggedPtr::<_, BITS>::new((&Align4(0)).into(), 0);",
-    }
-
-    compile_fail_doctest! {
-        test4,
-        pass = "const BITS: usize = 3;",
-        fail = "const BITS: usize = 4;",
-        r"use tagged_pointer::TaggedPtr;
-        #[repr(align(8))]
-        struct Align8(pub u64);
-        TaggedPtr::<_, BITS>::new((&Align8(0)).into(), 0);",
-    }
 }
