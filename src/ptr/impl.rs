@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2024 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2025 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
@@ -22,11 +22,14 @@ use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-const ALIGN_OFFSET_FAILED: &str = "\
-error: align_offset returned usize::MAX
-
-this should not happen; please file an issue at
-https://github.com/taylordotfish/tagged-pointer";
+fn validate_align_offset(offset: usize) {
+    assert!(
+        offset != usize::MAX,
+        "error: align_offset returned usize::MAX\n\n\
+        This should not happen; please file an issue at:\n{}",
+        env!("CARGO_PKG_REPOSITORY"),
+    );
+}
 
 #[repr(transparent)]
 pub(super) struct PtrImpl<T, B = PhantomData<T>>(
@@ -39,7 +42,7 @@ impl<T, B: NumBits> PtrImpl<T, B> {
         Self::assert();
         let byte_ptr = ptr.as_ptr().cast::<u8>();
         let offset = byte_ptr.align_offset(Self::ALIGNMENT);
-        assert!(offset != usize::MAX, "{}", ALIGN_OFFSET_FAILED);
+        validate_align_offset(offset);
         // Check that none of the bits we're about to use are already set. If
         // `ptr` is aligned enough, we expect `offset` to be zero, but it could
         // theoretically be a nonzero multiple of `Self::ALIGNMENT`, so apply
@@ -90,7 +93,7 @@ impl<T, B: NumBits> PtrImpl<T, B> {
     pub fn get(self) -> (NonNull<T>, usize) {
         let ptr = self.0.as_ptr();
         let offset = ptr.align_offset(Self::ALIGNMENT);
-        assert!(offset != usize::MAX, "{}", ALIGN_OFFSET_FAILED);
+        validate_align_offset(offset);
 
         // We expect that `offset < Self::ALIGNMENT`, but use `wrapping_sub`
         // just in case. Applying the mask is important both in the unlikely
