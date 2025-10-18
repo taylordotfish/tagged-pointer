@@ -22,7 +22,8 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr::NonNull;
 
-#[path = "impl.rs"]
+#[cfg_attr(feature = "fallback", path = "fallback.rs")]
+#[cfg_attr(not(feature = "fallback"), path = "impl.rs")]
 mod ptr_impl;
 use ptr_impl::PtrImpl;
 

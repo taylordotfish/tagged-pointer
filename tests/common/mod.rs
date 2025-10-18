@@ -152,6 +152,7 @@ fn zst() {
     }
 }
 
+#[cfg(not(feature = "fallback"))]
 #[test]
 #[should_panic]
 fn runtime_not_aligned_enough() {

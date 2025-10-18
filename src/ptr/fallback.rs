@@ -19,12 +19,13 @@
 use super::NumBits;
 use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
-use core::ptr::NonNull;
 use core::marker::PhantomData;
+use core::ptr::NonNull;
 
 pub(super) struct PtrImpl<T, B = PhantomData<T>> {
     ptr: NonNull<T>,
     tag: usize,
+    phantom: PhantomData<fn() -> B>,
 }
 
 impl<T, B: NumBits> PtrImpl<T, B> {
@@ -33,6 +34,7 @@ impl<T, B: NumBits> PtrImpl<T, B> {
         Self {
             ptr,
             tag: tag & Self::MASK,
+            phantom: PhantomData,
         }
     }
 
@@ -54,24 +56,31 @@ impl<T, B: NumBits> PtrImpl<T, B> {
     }
 
     pub fn get(self) -> (NonNull<T>, usize) {
+        self.get_priv()
+    }
+}
+
+impl<T, B> PtrImpl<T, B> {
+    /// Private version of `get` that doesn't require `B: NumBits`.
+    fn get_priv(self) -> (NonNull<T>, usize) {
         (self.ptr, self.tag)
     }
 }
 
-impl<T> PartialEq for PtrImpl<T> {
+impl<T, B> PartialEq for PtrImpl<T, B> {
     fn eq(&self, other: &Self) -> bool {
-        self.get() == other.get()
+        self.get_priv() == other.get_priv()
     }
 }
 
-impl<T> Ord for PtrImpl<T> {
+impl<T, B> Ord for PtrImpl<T, B> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.get().cmp(&other.get())
+        self.get_priv().cmp(&other.get_priv())
     }
 }
 
-impl<T> Hash for PtrImpl<T> {
+impl<T, B> Hash for PtrImpl<T, B> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.get().hash(state);
+        self.get_priv().hash(state);
     }
 }
