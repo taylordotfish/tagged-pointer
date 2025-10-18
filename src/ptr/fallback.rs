@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2024 taylor.fish <contact@taylor.fish>
+ * Copyright 2021-2025 taylor.fish <contact@taylor.fish>
  *
  * This file is part of tagged-pointer.
  *
