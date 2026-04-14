@@ -47,7 +47,7 @@ Platform considerations
 
 The number of tag bits that can be stored in a pointer of a given type
 depends on the type’s alignment. However, the alignment of many types is
-[platform-specific][primitive-layout]: `u64`, for example, could have an
+[platform-specific][primitive-align]: `u64`, for example, could have an
 alignment of 8 on one platform and 4 on another.
 
 Therefore, it is highly recommended to use [`#[repr(align)]`][repr-align]
@@ -66,10 +66,8 @@ let x = MyU64(123);
 let tp = TaggedPtr::<MyU64, 3>::new(NonNull::from(&x), 0b101);
 ```
 
-[primitive-layout]:
- https://doc.rust-lang.org/reference/type-layout.html#primitive-data-layout
-[repr-align]:
- https://doc.rust-lang.org/reference/type-layout.html#the-alignment-modifiers
+[primitive-align]: https://doc.rust-lang.org/reference/type-layout.html#r-layout.primitive.align
+[repr-align]: https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.alignment
 
 Assumptions
 -----------
@@ -94,8 +92,7 @@ space efficiency.
 However, as of Rust 1.78, this assumption is no longer necessary:
 `align_offset` is [guaranteed to behave as required][121201].
 
-[align_offset]:
- https://doc.rust-lang.org/std/primitive.pointer.html#method.align_offset
+[align_offset]: https://doc.rust-lang.org/std/primitive.pointer.html#method.align_offset
 [121201]: https://github.com/rust-lang/rust/pull/121201/
 
 [`TaggedPtr`]: https://docs.rs/tagged-pointer/0.2/tagged_pointer/struct.TaggedPtr.html

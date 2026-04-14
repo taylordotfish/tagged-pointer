@@ -70,7 +70,7 @@
 //!
 //! The number of tag bits that can be stored in a pointer of a given type
 //! depends on the type’s alignment. However, the alignment of many types is
-//! [platform-specific][primitive-layout]: `u64`, for example, could have an
+//! [platform-specific][primitive-align]: `u64`, for example, could have an
 //! alignment of 8 on one platform and 4 on another.
 //!
 //! Therefore, it is highly recommended to use [`#[repr(align)]`][repr-align]
@@ -93,11 +93,10 @@
 //! let tp = TaggedPtr::<MyU64, 3>::new(NonNull::from(&x), 0b101);
 //! ```
 //!
-//! [primitive-layout]:
-//!  https://doc.rust-lang.org/reference/type-layout.html#primitive-data-layout
-//! [repr-align]:
-#![doc = "https://doc.rust-lang.org/reference/type-layout.html\
-    #the-alignment-modifiers"]
+#![doc = "[primitive-align]: https://doc.rust-lang.org/reference/\
+    type-layout.html#r-layout.primitive.align"]
+#![doc = "[repr-align]: https://doc.rust-lang.org/reference/\
+    type-layout.html#r-layout.repr.alignment"]
 //!
 //! Assumptions
 //! -----------
